@@ -1,0 +1,328 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Teacher Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#" id="dashboardHomeLink">Classroom LMS | Andhivie</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addClassModal">Add Class</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#randomizerModal">Randomizer</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% include 'lms/_sidebar.html' %}
+
+    <!-- RANDOMIZER MODAL (UPGRADED) -->
+    <div class="modal fade" id="randomizerModal" tabindex="-1" aria-labelledby="randomizerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
+                <div class="modal-header text-white" style="background: #003f5c; border-radius: 1.5rem 1.5rem 0 0;">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-shuffle me-2"></i>Classroom Randomizer</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4 py-4">
+                    <div class="d-flex justify-content-center">
+                        <ul class="nav nav-pills flex-nowrap overflow-auto" id="randomizerTab" role="tablist">
+                            <li class="nav-item flex-shrink-0" role="presentation">
+                                <button class="nav-link active" id="team-tab" data-bs-toggle="pill" data-bs-target="#team" type="button">👥 Team</button>
+                            </li>
+                            <li class="nav-item flex-shrink-0" role="presentation">
+                                <button class="nav-link" id="name-tab" data-bs-toggle="pill" data-bs-target="#name" type="button">🎯 Name</button>
+                            </li>
+                            <li class="nav-item flex-shrink-0" role="presentation">
+                                <button class="nav-link" id="pair-tab" data-bs-toggle="pill" data-bs-target="#pair" type="button">🤝 Pair</button>
+                            </li>
+                            <li class="nav-item flex-shrink-0" role="presentation">
+                                <button class="nav-link" id="seat-tab" data-bs-toggle="pill" data-bs-target="#seat" type="button">🪑 Seat</button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="tab-content mt-3">
+                        <!-- ========== TEAM GENERATOR ========== -->
+                        <div class="tab-pane fade show active" id="team" role="tabpanel">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-5 col-12 mb-2 mb-md-0">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">SELECT CLASS</label>
+                                    <select id="teamClassSelect" class="form-select form-select-sm">
+                                        <option value="">-- Choose --</option>
+                                        {% for cls in all_classes %}<option value="{{ cls.id }}">{{ cls.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">TEAMS</label>
+                                    <input type="number" id="teamCount" class="form-control form-control-sm" min="2" max="15" value="2">
+                                </div>
+                                <div class="col-md-4 col-6 d-flex gap-2">
+                                    <button id="generateTeamsBtn" class="randomizer-btn randomizer-btn-primary flex-grow-1"><i class="bi bi-shuffle me-1"></i> Generate</button>
+                                    <button id="showTeamHistoryBtn" class="randomizer-btn randomizer-btn-outline" title="History"><i class="bi bi-clock-history"></i></button>
+                                    <button id="clearTeamHistoryBtn" class="randomizer-btn randomizer-btn-danger" title="Clear"><i class="bi bi-trash3"></i></button>
+                                </div>
+                            </div>
+                            <div class="mt-3" id="teamsResult">
+                                <div class="row g-3" id="teamsContainer"></div>
+                            </div>
+                            <div id="teamHistoryPanel" style="display:none;" class="mt-3">
+                                <hr class="my-2">
+                                <small class="text-muted text-uppercase fw-bold">History</small>
+                                <ul id="teamHistoryList" class="list-group list-group-flush small"></ul>
+                            </div>
+                        </div>
+
+                        <!-- ========== NAME RANDOMIZER ========== -->
+                        <div class="tab-pane fade" id="name" role="tabpanel">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-6 col-12 mb-2 mb-md-0">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">SELECT CLASS</label>
+                                    <select id="nameClassSelect" class="form-select form-select-sm">
+                                        <option value="">-- Choose --</option>
+                                        {% for cls in all_classes %}<option value="{{ cls.id }}">{{ cls.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6 col-12 d-flex gap-2">
+                                    <button id="spinWheelBtn" class="randomizer-btn randomizer-btn-success flex-grow-1"><i class="bi bi-shuffle me-1"></i> Spin</button>
+                                    <button id="resetNameHistoryBtn" class="randomizer-btn randomizer-btn-outline"><i class="bi bi-arrow-repeat"></i></button>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-center">
+                                <div id="wheelResult">🎲 Ready</div>
+                                <div id="spinAnimation" style="display:none; font-size:2rem;">🌀</div>
+                            </div>
+                        </div>
+
+                        <!-- ========== PAIR GENERATOR ========== -->
+                        <div class="tab-pane fade" id="pair" role="tabpanel">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-7 col-12 mb-2 mb-md-0">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">SELECT CLASS</label>
+                                    <select id="pairClassSelect" class="form-select form-select-sm">
+                                        <option value="">-- Choose --</option>
+                                        {% for cls in all_classes %}<option value="{{ cls.id }}">{{ cls.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-5 col-12 d-flex gap-2">
+                                    <button id="generatePairsBtn" class="randomizer-btn randomizer-btn-primary flex-grow-1"><i class="bi bi-shuffle me-1"></i> Generate</button>
+                                    <button id="showPairHistoryBtn" class="randomizer-btn randomizer-btn-outline" title="History"><i class="bi bi-clock-history"></i></button>
+                                    <button id="clearPairHistoryBtn" class="randomizer-btn randomizer-btn-danger" title="Clear"><i class="bi bi-trash3"></i></button>
+                                </div>
+                            </div>
+                            <div class="mt-3" id="pairsResult" style="display:none;">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="text-white" style="background-color: #003f5c;">
+                                            <tr>
+                                                <th style="width:8%;">No.</th>
+                                                <th style="width:46%;">Pair 1</th>
+                                                <th style="width:46%;">Pair 2</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pairsTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div id="pairHistoryPanel" style="display:none;" class="mt-3">
+                                <hr class="my-2">
+                                <small class="text-muted text-uppercase fw-bold">History</small>
+                                <ul id="pairHistoryList" class="list-group list-group-flush small"></ul>
+                            </div>
+                        </div>
+
+                        <!-- ========== SEAT RANDOMIZER ========== -->
+                        <div class="tab-pane fade" id="seat" role="tabpanel">
+                            <div class="row g-3 align-items-end mb-3">
+                                <div class="col-md-5 col-12 mb-2 mb-md-0">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">SELECT CLASS</label>
+                                    <select id="seatClassSelect" class="form-select form-select-sm">
+                                        <option value="">-- Choose --</option>
+                                        {% for cls in all_classes %}<option value="{{ cls.id }}">{{ cls.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-7 col-12">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">LAYOUT</label>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <button class="seat-layout-btn active" data-layout="rows">▦ Rows</button>
+                                        <button class="seat-layout-btn" data-layout="clusters">⊞ Groups</button>
+                                        <button class="seat-layout-btn" data-layout="pairs">◫ Pairs</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-3 align-items-end mb-3">
+                                <div class="col-md-3 col-6">
+                                    <label class="form-label small mb-1 fw-semibold text-secondary">COLUMNS</label>
+                                    <input type="number" id="seatColumns" class="form-control form-control-sm" min="1" max="10" value="4">
+                                </div>
+                                <div class="col-md-3 col-6 d-flex gap-2">
+                                    <button id="generateSeatBtn" class="randomizer-btn randomizer-btn-primary"><i class="bi bi-shuffle me-1"></i> Random</button>
+                                    <button id="resetSeatBtn" class="randomizer-btn randomizer-btn-outline" title="Reset"><i class="bi bi-arrow-repeat"></i></button>
+                                </div>
+                                <div class="col-md-6 col-12 text-end">
+                                    <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Drag names to swap seats</small>
+                                </div>
+                            </div>
+                            <div class="seat-plan-wrapper" id="seatPlanContainer">
+                                <div class="text-center text-muted py-4 small"><i class="bi bi-arrow-up me-1"></i> Select a class and click Random</div>
+                            </div>
+                        </div>
+                    </div><!-- /tab-content -->
+                </div><!-- /modal-body -->
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETAIL HISTORY -->
+    <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="historyDetailTitle">Detail</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="historyDetailBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD UTAMA -->
+    <div class="container-fluid px-2 px-md-4 mt-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+            <h1 class="mb-2 mb-md-0" style="font-weight:650;color:#2c3e50;font-size:clamp(1.1rem, 4vw, 1.7rem);"> Welcome, Mr. {{ user.username }}!</h1>
+            <div class="highlight-box"><span id="highlightText">🏆 Loading...</span></div>
+        </div>
+        <div class="search-filter-bar">
+            <div class="d-flex justify-content-between align-items-center flex-nowrap">
+                <h2 class="dashboard-section-title flex-shrink-0 me-3"><i class="bi bi-mortarboard-fill me-2"></i>Your Classes</h2>
+                <!-- Group kanan: Search & Select, vertikal di mobile, horizontal di desktop -->
+                <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center flex-shrink-0">
+                    <div class="search-wrapper" style="max-width:200px;">
+                        <i class="bi bi-search search-icon"></i>
+                        <input type="text" id="searchInput" class="form-control search-input" placeholder="Search student..." value="{{ search_query|default:'' }}">
+                    </div>
+                    <select id="class_select" class="form-select class-filter" style="width:auto;">
+                        <option value="">-- All Classes --</option>
+                        {% for cls in all_classes %}<option value="{{ cls.id }}" {% if selected_class_id|stringformat:"s" == cls.id|stringformat:"s" %}selected{% endif %}>{{ cls.name }} ({{ cls.semester.name }})</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div id="dashboard-content">{% include 'lms/partials/_dashboard_content.html' %}</div>
+    </div>
+
+    <!-- MODAL RESET CLASS -->
+    <div class="modal fade" id="resetClassModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius:1rem;">
+                <div class="modal-header text-white" style="background-color:#dc3545;border-radius:1rem 1rem 0 0;">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Reset Class Data</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="mb-3">You are about to <strong>delete all data</strong> in this class:</p>
+                    <ul class="list-unstyled ms-3">
+                        <li class="mb-1"><i class="bi bi-dot"></i> All attendance records</li>
+                        <li class="mb-1"><i class="bi bi-dot"></i> Behavior points</li>
+                        <li class="mb-1"><i class="bi bi-dot"></i> Assessments and scores</li>
+                        <li class="mb-1"><i class="bi bi-dot"></i> Student feedback</li>
+                    </ul>
+                    <p class="text-danger fw-semibold small mt-3 mb-2"><i class="bi bi-info-circle me-1"></i> This action cannot be undone.</p>
+                    <div class="form-check mt-3"><input class="form-check-input" type="checkbox" id="deleteStudentsCheckbox"><label class="form-check-label" for="deleteStudentsCheckbox">Also delete all students permanently</label></div>
+                </div>
+                <div class="modal-footer border-0 pt-0"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1"></i> Cancel</button><button type="button" class="btn btn-danger px-4" id="confirmResetClassBtn"><i class="bi bi-trash me-1"></i> Reset Now</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD CLASS -->
+    <div class="modal fade" id="addClassModal" tabindex="-1" aria-labelledby="addClassModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: #003f5c;">
+                    <h5 class="modal-title" id="addClassModalLabel"><i class="bi bi-plus-circle me-2"></i>Add New Class</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addClassForm">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="className" class="form-label">Class Name *</label>
+                            <input type="text" class="form-control" id="className" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="semesterSelect" class="form-label">Semester *</label>
+                            <select class="form-select" id="semesterSelect" name="semester" required>
+                                <option value="">-- Select Semester --</option>
+                                {% for sem in semesters %}
+                                    <option value="{{ sem.id }}">{{ sem.name }} ({{ sem.start_date|date:"M d, Y" }} - {{ sem.end_date|date:"M d, Y" }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="scheduleInput" class="form-label">Schedule (optional)</label>
+                            <input type="text" class="form-control" id="scheduleInput" name="schedule" placeholder="e.g., Mon/Wed 9:00-10:30">
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Class</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-clock d-none d-sm-block" id="live-clock"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        // Variabel dari Django yang dibutuhkan oleh dashboard.js
+        const DASHBOARD_URL = '{% url "dashboard" %}';
+        const ADD_CLASS_URL = '{% url "add_class" %}';
+        const highlights = [
+            {% if highest_positive %}
+                "🌟 Most Positive Points: {{ highest_positive.student.name|escapejs }} (+{{ highest_positive.total_positive }})",
+            {% else %}
+                "🌟 Most Positive Points: -",
+            {% endif %}
+            {% if highest_negative %}
+                "⚠️ Most Negative Points: {{ highest_negative.student.name|escapejs }} (-{{ highest_negative.total_negative }})",
+            {% else %}
+                "⚠️ Most Negative Points: -",
+            {% endif %}
+            {% if highest_final and highest_final.final_score is not None %}
+                "🎯 Highest Final Score: {{ highest_final.student.name|escapejs }} ({{ highest_final.final_score }})",
+            {% else %}
+                "🎯 Highest Final Score: -",
+            {% endif %}
+        ];
+    </script>
+    <script src="{% static 'js/dashboard.js' %}"></script>
+</body>
+</html>

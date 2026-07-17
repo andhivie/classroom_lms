@@ -1,0 +1,46 @@
+{% extends 'lms/base.html' %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block content %}
+<h1>Welcome, {{ user.username }}</h1>
+<h2>Your Classes</h2>
+{% if class_data %}
+    {% for item in class_data %}
+        <div class="card mb-3">
+            <div class="card-header"><strong>{{ item.class.name }}</strong> ({{ item.class.semester.name }})</div>
+            <div class="card-body">
+                <h5>Students:</h5>
+                {% if item.students %}
+                    {% for student_item in item.students %}
+                        <div class="student-row">
+                            <div class="behavior-col">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'add_behavior' student_item.student.id %}?points=5" class="btn btn-success">+5</a>
+                                    <a href="{% url 'add_behavior' student_item.student.id %}?points=-3" class="btn btn-danger">-3</a>
+                                </div>
+                            </div>
+                            <div class="attendance-col">Attendance: {{ student_item.attendance_percentage }}%</div>
+                            <div class="behavior-summary-col">
+                                <span class="text-success">+{{ student_item.total_positive }}</span> /
+                                <span class="text-danger">-{{ student_item.total_negative }}</span>
+                                <strong>Net: {{ student_item.net_points }}</strong>
+                            </div>
+                            <div class="name-col">
+                                {{ student_item.student.name }}
+                                {% if student_item.student.email %}({{ student_item.student.email }}){% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>No students enrolled yet.</p>
+                {% endif %}
+                <div class="mt-2">
+                    <a href="{% url 'mark_attendance' item.class.id %}" class="btn btn-primary btn-sm">Mark Attendance</a>
+                    <a href="{% url 'bulk_add_students' %}?class_id={{ item.class.id }}" class="btn btn-success btn-sm">Bulk Add Students</a>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>You don't have any classes yet.</p>
+{% endif %}
+{% endblock %}

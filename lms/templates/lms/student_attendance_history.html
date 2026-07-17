@@ -1,0 +1,221 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance History - {{ class_obj.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* Hanya CSS spesifik halaman ini */
+        .card-body {
+            padding: 1rem 1.5rem 1.5rem;
+        }
+
+        .table td, .table th {
+            padding: 0.4rem 0.5rem;
+            vertical-align: middle;
+        }
+
+        /* Kolom No (sticky kiri) */
+        .table th:first-child,
+        .table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background-color: #fff;
+            text-align: center;
+            width: 45px;
+            min-width: 45px;
+        }
+
+        /* Kolom Nama (sticky setelah No) – LEBAR TETAP */
+        .table th:nth-child(2) {
+            position: sticky;
+            left: 45px;
+            z-index: 3;
+            background-color: #fff;
+            text-align: center;           /* HEADER rata tengah */
+            width: 250px;
+            min-width: 250px;
+            white-space: normal;
+            word-break: break-word;
+        }
+        .table td:nth-child(2) {
+            position: sticky;
+            left: 45px;
+            z-index: 3;
+            background-color: #fff;
+            text-align: left;             /* ISI tetap rata kiri */
+            width: 250px;
+            min-width: 250px;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        /* Header dua kolom pertama lebih tinggi z-index */
+        .table thead th:first-child,
+        .table thead th:nth-child(2) {
+            z-index: 6;
+            background-color: #003f5c;
+            color: white;
+        }
+
+        /* Kolom tanggal (header dan isi) */
+        .table th:not(:first-child):not(:nth-child(2)),
+        .table td:not(:first-child):not(:nth-child(2)) {
+            text-align: center;
+            min-width: 70px;
+        }
+
+        /* Tanpa border pada sel */
+        .table td, .table th {
+            border: none;
+        }
+
+        /* Container dengan scroll horizontal & vertikal */
+        .table-scroll-container {
+            max-height: 500px;
+            overflow: auto;
+        }
+
+        .legend-box {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Tombol Back to Attendance – putih dengan hover navbar */
+        .btn-back {
+            background-color: #ffffff;
+            border: 1px solid #003f5c;
+            color: #003f5c;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            padding: 0.4rem 1rem;
+            transition: all 0.2s ease;
+        }
+        .btn-back:hover {
+            background-color: #003f5c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Attendance History — {{ class_obj.name }}</h5>
+                <a href="{% url 'mark_attendance' class_obj.id %}" class="btn btn-back btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Attendance
+                </a>
+            </div>
+            <div class="card-body">
+                {% if student_attendance %}
+                <div class="table-scroll-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Student Name</th>
+                                {% for session in sessions %}
+                                    <th>{{ session.date|date:"d/m" }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in student_attendance %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ row.student.name }}</td>
+                                {% for status in row.statuses %}
+                                    <td>
+                                        {% if status == 'Present' %}
+                                            <span class="badge bg-success">P</span>
+                                        {% elif status == 'Late' %}
+                                            <span class="badge bg-warning text-dark">L</span>
+                                        {% elif status == 'Absent' %}
+                                            <span class="badge bg-danger">A</span>
+                                        {% elif status == 'Excused' %}
+                                            <span class="badge bg-info">E</span>
+                                        {% elif status == 'Sick' %}
+                                            <span class="badge bg-secondary">S</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- LEGENDA -->
+                <div class="legend-box">
+                    <strong><i class="bi bi-info-circle me-2"></i>Note:</strong>
+                    <div class="row mt-2">
+                        <div class="col-md-4 legend-item"><span class="badge bg-success me-2">P</span> Present</div>
+                        <div class="col-md-4 legend-item"><span class="badge bg-warning text-dark me-2">L</span> Late</div>
+                        <div class="col-md-4 legend-item"><span class="badge bg-danger me-2">A</span> Absent</div>
+                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-info me-2">E</span> Excused</div>
+                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-secondary me-2">S</span> Sick</div>
+                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-light text-dark border me-1">—</span> No data</div>
+                    </div>
+                </div>
+
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
+                    <p class="mt-2">No attendance records yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-clock" id="live-clock"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bulk Add Students</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* Hanya CSS spesifik halaman ini */
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control, .form-select {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #003f5c;
+            box-shadow: 0 0 0 0.2rem rgba(0,63,92,0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 200px;
+            font-family: 'Segoe UI', monospace;
+            line-height: 1.6;
+        }
+
+        .btn-primary {
+            background-color: #003f5c;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            padding: 0.6rem 1.8rem;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #002a3f;
+        }
+        .btn-secondary {
+            border-radius: 0.5rem;
+            font-weight: 500;
+            padding: 0.6rem 1.8rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-people-fill me-2"></i>
+                <h5 class="mb-0">Bulk Add Students</h5>
+            </div>
+            <div class="card-body">
+                <form id="bulkAddForm" method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="class_id" class="form-label">Select Class</label>
+                        <select name="class_id" id="class_id" class="form-select" required>
+                            <option value="">-- Choose a class --</option>
+                            {% for cls in classes %}
+                                <option value="{{ cls.id }}" {% if request.GET.class_id == cls.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ cls.name }} ({{ cls.semester.name }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="student_data" class="form-label">Student List</label>
+                        <textarea name="student_data" id="student_data" class="form-control" placeholder="John Doe, john@example.com&#10;Jane Smith, jane@example.com"></textarea>
+                        <div class="form-text mt-2">
+                            <i class="bi bi-info-circle me-1"></i> Format: <strong>Name, Email</strong> (email is optional). One student per line.
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Add Students</button>
+                        <a href="{% url 'dashboard' %}{% if request.GET.class_id %}?class_id={{ request.GET.class_id }}{% endif %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-clock" id="live-clock"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // csrfToken sudah disediakan oleh sidebar.js
+
+        const form = document.getElementById('bulkAddForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+
+            const formData = new FormData(form);
+            try {
+                const response = await fetch("{% url 'bulk_add_students' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    sessionStorage.setItem('bulkAddMessage', JSON.stringify({
+                        type: 'success',
+                        text: data.message
+                    }));
+                    addActivityLog('Students added in bulk');
+                    window.location.href = "{% url 'dashboard' %}";
+                } else {
+                    showNotification(data.message || 'Failed to add students.', 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Network error. Please try again.', 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    </script>
+</body>
+</html>

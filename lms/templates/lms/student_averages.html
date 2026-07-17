@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Averages - {{ class_obj.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* Hanya CSS spesifik halaman ini */
+        .card-body {
+            padding: 0.75rem 1.5rem 1.5rem;
+        }
+
+        .table td, .table th {
+            padding: 0.7rem 0.5rem;
+            border-bottom: 1px solid #e9ecef;
+            background-color: white;
+            vertical-align: middle;
+        }
+
+        .table th:first-child,
+        .table td:first-child {
+            text-align: center;
+            width: 50px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .table th:nth-child(2) {
+            text-align: center;
+        }
+        .table td:nth-child(2) {
+            text-align: left;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        .table th:nth-child(3),
+        .table td:nth-child(3) {
+            text-align: center;
+        }
+        .table th:nth-child(4),
+        .table td:nth-child(4) {
+            text-align: center;
+        }
+
+        .btn-copy-icon {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0;
+            margin-left: 5px;
+            transition: opacity 0.2s;
+        }
+        .btn-copy-icon:hover {
+            opacity: 0.7;
+        }
+
+        .toast-copy {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background-color: #198754;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            pointer-events: none;
+        }
+        .toast-copy.show {
+            opacity: 1;
+        }
+
+        /* Tombol Back to Assessments – putih dengan hover navy */
+        .btn-back {
+            background-color: #ffffff;
+            border: 1px solid #003f5c;
+            color: #003f5c;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            padding: 0.4rem 1rem;
+            transition: all 0.2s ease;
+        }
+        .btn-back:hover {
+            background-color: #003f5c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% include 'lms/_sidebar.html' %}
+
+    <div id="copyToast" class="toast-copy">✔ Values copied successfully</div>
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Student Averages — {{ class_obj.name }}</h5>
+                <a href="{% url 'class_assessments' class_obj.id %}" class="btn btn-back btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Assessments
+                </a>
+            </div>
+            <div class="card-body">
+                {% if student_data %}
+                <div class="table-responsive">
+                    <table class="table" id="averagesTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Student Name</th>
+                                <th>
+                                    Average Score (%)
+                                    <button id="copyValuesBtn" class="btn-copy-icon" title="Copy all values">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </th>
+                                <th>Assessments Taken</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in student_data %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ item.student.name }}</td>
+                                <td class="score-value">
+                                    {% if item.avg_percentage is not None %}
+                                        {{ item.avg_percentage|floatformat:1 }}%
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.assessed_count }} / {{ item.total_assessments }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No students enrolled in this class.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-clock" id="live-clock"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        document.getElementById('copyValuesBtn').addEventListener('click', function() {
+            const scoreCells = document.querySelectorAll('#averagesTable tbody td.score-value');
+            let values = [];
+            scoreCells.forEach(cell => {
+                let text = cell.innerText.trim().replace('%', '').trim();
+                if (text !== '—' && text !== '') {
+                    values.push(text);
+                }
+            });
+            if (values.length === 0) {
+                alert('No values to copy.');
+                return;
+            }
+            navigator.clipboard.writeText(values.join('\n')).then(() => {
+                const toast = document.getElementById('copyToast');
+                toast.classList.add('show');
+                setTimeout(() => { toast.classList.remove('show'); }, 2000);
+            }).catch(err => {
+                console.error('Clipboard error:', err);
+                alert('Failed to copy.');
+            });
+        });
+    </script>
+</body>
+</html>

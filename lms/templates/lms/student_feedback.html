@@ -1,0 +1,250 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Feedback for {{ student.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Hanya style khusus halaman ini */
+        .form-label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .feedback-preview {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #212529;
+        }
+        .editor-toolbar {
+            border-radius: 0.5rem 0.5rem 0 0;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            background: #f8f9fa;
+            padding: 0.3rem;
+        }
+        .CodeMirror {
+            border-radius: 0 0 0.5rem 0.5rem;
+            border: 1px solid #dee2e6;
+            min-height: 250px;
+            font-size: 0.9rem;
+        }
+        .CodeMirror-scroll { max-height: 400px; }
+        .autosave-indicator {
+            font-size: 0.8rem;
+            color: #198754;
+            margin-left: 1rem;
+            font-weight: 500;
+        }
+        .alert-soft-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffecb5;
+            border-radius: 0.5rem;
+            color: #664d03;
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+        }
+        .btn-primary { background-color: #003f5c; border: none; color: white; }
+        .btn-primary:hover { background-color: #002a3f; }
+        .btn-secondary { background-color: #6c757d; border: none; color: white; }
+        .btn-secondary:hover { background-color: #5c636a; }
+        .btn-outline-secondary { border: 1px solid #6c757d; color: #6c757d; }
+        .btn-outline-secondary:hover { background-color: #6c757d; color: white; }
+        .btn-success { background-color: #198754; border: none; }
+        .btn-success:hover { background-color: #157347; }
+        .btn-danger { background-color: #dc3545; border: none; }
+        .btn-danger:hover { background-color: #bb2d3b; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container mt-4 main-container">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-chat-square-text me-2"></i>
+                <h5 class="mb-0">Feedback for {{ student.name }} — {{ class_obj.name }}</h5>
+            </div>
+            <div class="card-body">
+
+                {% if missing_assessments %}
+                <div class="alert-soft-warning d-flex align-items-center flex-wrap gap-2 mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <span><strong>{{ missing_assessments|length }}</strong> asesmen belum dinilai:</span>
+                    {% for ass in missing_assessments %}
+                        <a href="{% url 'enter_scores' ass.id %}" class="badge bg-warning text-dark text-decoration-none me-1 mb-1">
+                            {{ ass.name }} ({{ ass.max_points }} poin)
+                        </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post" id="feedbackForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Edit Feedback (Markdown enabled)</label>
+                        <textarea name="feedback_text" id="feedback-editor" style="display: none;">{{ feedback.feedback_text }}</textarea>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="submit" name="action" value="save_manual" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Manual</button>
+                        <button type="submit" name="action" value="generate_ai" class="btn btn-secondary"><i class="bi bi-robot me-1"></i> Generate AI Feedback</button>
+                        <a href="{% url 'generate_report_pdf' student.id class_obj.id %}" class="btn btn-success" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i> Download PDF</a>
+                        <a href="{% url 'dashboard' %}" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i> Cancel</a>
+                        <span id="autosave-status" class="autosave-indicator"></span>
+                    </div>
+                </form>
+
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" style="font-size: 1rem;"><i class="bi bi-eye me-2"></i>Preview</h5>
+                        <button id="togglePreviewBtn" class="btn btn-outline-secondary btn-sm">Show Preview</button>
+                    </div>
+                    <div id="previewContainer" style="display: none;">
+                        <div id="preview-content" class="feedback-preview">
+                            {{ feedback.feedback_text|linebreaks|safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-clock" id="live-clock"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+    <script>
+     
+        // ---------- JAM ----------
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ---------- NOTIFIKASI ----------
+        function showNotification(message, type) {
+            const notif = document.createElement('div');
+            notif.className = `alert alert-${type} alert-dismissible fade show notification-toast`;
+            notif.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 4000);
+        }
+
+        // ---------- SIMPLEMDE ----------
+        const simplemde = new SimpleMDE({
+            element: document.getElementById("feedback-editor"),
+            spellChecker: false,
+            toolbar: ["bold", "italic", "heading", "|", "unordered-list", "ordered-list", "|", "preview", "guide"],
+            status: false,
+            placeholder: "Tulis feedback... (gunakan **tebal**, *miring*, - daftar)"
+        });
+
+        function updatePreview() {
+            const html = marked.parse(simplemde.value());
+            document.getElementById('preview-content').innerHTML = html;
+        }
+        let previewTimer;
+        simplemde.codemirror.on('change', () => {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(updatePreview, 300);
+        });
+        updatePreview();
+
+        // ---------- AUTOSAVE (2 detik) ----------
+        let autosaveTimer;
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const statusSpan = document.getElementById('autosave-status');
+
+        function performAutosave() {
+            const text = simplemde.value();
+            fetch(window.location.href, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ 'action': 'save_manual', 'feedback_text': text })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    statusSpan.textContent = '✓ Auto-saved';
+                    addActivityLog('Feedback saved');
+                    setTimeout(() => { statusSpan.textContent = ''; }, 2000);
+                }
+            })
+            .catch(err => console.error('Autosave error:', err));
+        }
+
+        simplemde.codemirror.on('change', () => {
+            clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(performAutosave, 2000);
+        });
+
+        // ---------- TOGGLE PREVIEW ----------
+        let previewVisible = localStorage.getItem('previewVisible') === 'true';
+        const previewContainer = document.getElementById('previewContainer');
+        const toggleBtn = document.getElementById('togglePreviewBtn');
+
+        if (previewVisible) {
+            previewContainer.style.display = 'block';
+            toggleBtn.textContent = 'Hide Preview';
+        } else {
+            previewContainer.style.display = 'none';
+            toggleBtn.textContent = 'Show Preview';
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            previewVisible = !previewVisible;
+            previewContainer.style.display = previewVisible ? 'block' : 'none';
+            toggleBtn.textContent = previewVisible ? 'Hide Preview' : 'Show Preview';
+            if (previewVisible) updatePreview();
+            localStorage.setItem('previewVisible', previewVisible);
+        });
+
+        document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+            document.getElementById('feedback-editor').value = simplemde.value();
+            const action = document.activeElement.getAttribute('value');
+            if (action === 'save_manual') {
+                addActivityLog('Feedback saved manually');
+            } else if (action === 'generate_ai') {
+                addActivityLog('AI feedback generated');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<table class="table">
+    <thead>
+        <tr>
+            <th>No.</th>
+            <th>Student Name</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student, current_status in students_with_status %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ student.name }}</td>
+            <td>
+                <select name="status_{{ student.id }}" class="form-select">
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="3">No students enrolled in this class.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

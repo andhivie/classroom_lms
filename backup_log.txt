@@ -1,0 +1,17 @@
+20/04/2026 13:51:13,59 - Backup selesai: lms_backup_20-04-2026_13.51.13,55.sqlite3 
+20/04/2026 13:54:59,69 - Backup selesai: lms_backup_20-04-2026_13.54.59,64.sqlite3 
+20/04/2026 13:55:43,80 - Backup selesai: lms_backup_20-04-2026_13.55.43,75.sqlite3 
+20/04/2026 14:16:20,40 - Backup selesai: lms_backup_20-04-2026_14.16.20,36.sqlite3 
+21/04/2026 15:55:37,64 - Backup selesai: lms_backup_21-04-2026_15.55.37,57.sqlite3 
+23/04/2026  7:52:15,41 - Backup selesai: lms_backup_23-04-2026_07.52.15,39.sqlite3 
+23/04/2026 14:43:56,74 - Backup selesai: lms_backup_23-04-2026_14.43.56,67.sqlite3 
+05/05/2026 14:46:09,81 - Backup selesai: lms_backup_05-05-2026_14.46.09,50.sqlite3 
+06/05/2026 14:30:04,86 - Backup selesai: lms_backup_06-05-2026_14.30.04,78.sqlite3 
+13/05/2026 14:20:01,41 - Backup selesai: lms_backup_13-05-2026_14.20.01,36.sqlite3 
+18/05/2026 14:20:02,17 - Backup selesai: lms_backup_18-05-2026_14.20.02,14.sqlite3 
+25/05/2026 14:20:01,55 - Backup selesai: lms_backup_25-05-2026_14.20.01,47.sqlite3 
+05/06/2026 14:37:38,51 - Backup selesai: lms_backup_05-06-2026_14.37.38,31.sqlite3 
+09/06/2026 14:20:01,84 - Backup selesai: lms_backup_09-06-2026_14.20.01,77.sqlite3 
+11/06/2026 14:37:04,05 - Backup selesai: lms_backup_11-06-2026_14.37.03,78.sqlite3 
+21/06/2026 14:20:01,82 - Backup selesai: lms_backup_21-06-2026_14.20.01,77.sqlite3 
+23/06/2026 14:20:01,34 - Backup selesai: lms_backup_23-06-2026_14.20.01,30.sqlite3 
