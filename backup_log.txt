@@ -15,3 +15,11 @@
 11/06/2026 14:37:04,05 - Backup selesai: lms_backup_11-06-2026_14.37.03,78.sqlite3 
 21/06/2026 14:20:01,82 - Backup selesai: lms_backup_21-06-2026_14.20.01,77.sqlite3 
 23/06/2026 14:20:01,34 - Backup selesai: lms_backup_23-06-2026_14.20.01,30.sqlite3 
+22/07/2026 15:58:52,87 - Backup selesai: lms_backup_22-07-2026_15.58.52,60.sqlite3 
+31/07/2026 14:20:01,39 - Backup selesai: lms_backup_31-07-2026_14.20.01,33.sqlite3 
+05/08/2026 14:20:01,49 - Backup selesai: lms_backup_05-08-2026_14.20.01,44.sqlite3 
+11/08/2026 14:20:01,27 - Backup selesai: lms_backup_11-08-2026_14.20.01,25.sqlite3 
+12/08/2026 14:20:01,84 - Backup selesai: lms_backup_12-08-2026_14.20.01,82.sqlite3 
+18/08/2026 14:20:01,52 - Backup selesai: lms_backup_18-08-2026_14.20.01,46.sqlite3 
+19/08/2026 14:20:01,26 - Backup selesai: lms_backup_19-08-2026_14.20.01,23.sqlite3 
+26/08/2026 14:20:01,83 - Backup selesai: lms_backup_26-08-2026_14.20.01,77.sqlite3 

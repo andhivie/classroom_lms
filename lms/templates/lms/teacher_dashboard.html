@@ -322,6 +322,46 @@
                 "🎯 Highest Final Score: -",
             {% endif %}
         ];
+
+        // ADD CLASS AJAX SUBMISSION HANDLER
+        document.addEventListener('DOMContentLoaded', function () {
+            const addClassForm = document.getElementById('addClassForm');
+
+            if (addClassForm) {
+                addClassForm.addEventListener('submit', function (e) {
+                    e.preventDefault(); // Stop normal form submit redirect
+
+                    const formData = new FormData(addClassForm);
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                    fetch(ADD_CLASS_URL, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest' // Tells Django view to return JsonResponse
+                        },
+                        body: formData
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network error');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || 'Failed to create class.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Add Class Error:', error);
+                        alert('A network error occurred while creating the class.');
+                    });
+                });
+            }
+        });
     </script>
     <script src="{% static 'js/dashboard.js' %}"></script>
 </body>

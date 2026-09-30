@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect
+import time
+import logging
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -13,6 +15,11 @@ from django.db.models import Sum, Count, Q, Avg, F, FloatField, Case, When, Valu
 from django.db.models.functions import Coalesce
 import json
 from .models import Semester
+from lms.services.dashboard_service import (
+    get_behavior_summary,
+    get_attendance_summary,
+    calculate_final_score,
+)
 
 from .models import (
     Class, UserProfile, Enrollment, Student, AttendanceSession, AttendanceRecord,
@@ -29,6 +36,7 @@ def custom_logout(request):
 # ---------- Dashboard ----------
 @login_required
 def dashboard(request):
+    start_time = time.perf_counter()
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
@@ -63,6 +71,7 @@ def dashboard(request):
         classes = classes.filter(enrollments__student__in=matching_students).distinct()
 
     class_data = []
+    all_students_data = []
     for cls in classes:
         enrollments = Enrollment.objects.filter(
             class_obj=cls, is_active=True
@@ -74,40 +83,18 @@ def dashboard(request):
             continue
 
         # Behavior
-        behavior_agg = BehaviorEntry.objects.filter(student_id__in=student_ids).values('student_id').annotate(
-            total_positive=Coalesce(Sum('points', filter=Q(points__gt=0)), Value(0)),
-            total_negative=Coalesce(Sum('points', filter=Q(points__lt=0)), Value(0))
-        )
-        behavior_dict = {
-            item['student_id']: {
-                'total_positive': item['total_positive'],
-                'total_negative': abs(item['total_negative']),
-                'net_points': item['total_positive'] + item['total_negative']
-            }
-            for item in behavior_agg
-        }
+        behavior_dict = get_behavior_summary(student_ids)
 
         # Attendance
-        attendance_agg = AttendanceRecord.objects.filter(
-            student_id__in=student_ids,
-            session__class_obj=cls
-        ).values('student_id').annotate(
-            total_sessions=Count('id'),
-            present_count=Count('id', filter=Q(status__in=['present', 'late', 'excused', 'sick']))
-        )
-        attendance_dict = {}
-        for item in attendance_agg:
-            total = item['total_sessions']
-            present = item['present_count']
-            attendance_dict[item['student_id']] = {
-                'total_sessions': total,
-                'present_count': present,
-                'percentage': (present / total * 100) if total > 0 else 0.0
-            }
+        attendance_dict = get_attendance_summary(student_ids, cls)
 
-        # Academic: semua asesmen di kelas, tidak dikerjakan = 0
+        # Academic
         assessments_in_class = Assessment.objects.filter(class_obj=cls)
-        total_max_points = assessments_in_class.aggregate(total=Sum('max_points'))['total'] or 0
+
+        total_max_points = (
+            assessments_in_class.aggregate(total=Sum('max_points'))['total']
+            or 0
+            )
 
         scores_in_class = Score.objects.filter(
             student_id__in=student_ids,
@@ -177,13 +164,7 @@ def dashboard(request):
 
         class_data.append({'class': cls, 'students': students_data})
 
-    # Highlight Siswa
-    all_students_data = []
-    for cls in all_classes:
-        for item in class_data:
-            if item['class'].id == cls.id:
-                all_students_data.extend(item['students'])
-                break
+        all_students_data.extend(students_data)
 
     highest_positive = None
     highest_negative = None
@@ -210,6 +191,8 @@ def dashboard(request):
 
     if request.GET.get('partial') == 'true':
         return render(request, 'lms/partials/_dashboard_content.html', context)
+        elapsed = time.perf_counter() - start_time
+        print(f"Dashboard loaded in {elapsed:.3f} seconds")
 
     return render(request, 'lms/teacher_dashboard.html', context)
 
@@ -905,11 +888,14 @@ def add_behavior(request, student_id, class_id):
     has_attendance = total_sessions > 0
     has_behavior = behavior_entries.exists()
     if has_academic or has_attendance or has_behavior:
-        final_score = (
-            academic_avg * 0.6 + attendance_percentage * 0.15
-            + positive_component * 0.15 + negative_component * 0.1
+        final_score = calculate_final_score(
+            academic_avg=academic_avg,
+            attendance_percentage=attendance_percentage,
+            total_positive=total_positive,
+            total_negative=total_negative,
+            cls=class_obj,
+            has_behavior=has_behavior,
         )
-        final_score = min(round(final_score, 1), 100.0)
     else:
         final_score = None
 
