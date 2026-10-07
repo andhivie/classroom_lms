@@ -1,60 +1,73 @@
 {% if assessments %}
     <div class="table-responsive">
-        <table class="table">
+        <table class="assessments-table">
             <thead>
                 <tr>
-                    <th>No.</th>
-                    <th>Learning Objective</th>
-                    <th>Topic</th>
-                    <th>Type</th>
-                    <th>Date</th>
-                    <th>Max Points</th>
-                    <th class="class-avg-col">Class Avg (%)</th>
-                    <th>Actions</th>
+                    <th style="width: 4%;">No.</th>
+                    <th style="width: 22%;">Learning Objective</th>
+                    <th style="width: 18%;">Topic</th>
+                    <th style="width: 13%;">Type</th>
+                    <th style="width: 10%;">Date</th>
+                    <th style="width: 8%;">Max</th>
+                    <th class="class-avg-col" style="width: 9%;">Class Avg</th>
+                    <th style="width: 16%;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for ass in assessments %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
-                    <td>{{ ass.learning_objective|default:"—" }}</td>
-                    <td>{{ ass.name }}</td>
-                    <td>{{ ass.assessment_type.name|default:"—" }}</td>
+                    <td>{{ ass.learning_objective|default:"—"|truncatechars:60 }}</td>
+                    <td>{{ ass.name|truncatechars:40 }}</td>
+                    <td>
+                        {% if ass.assessment_type %}
+                            <span class="assessment-type-pill {% if ass.assessment_type.name == 'Daily Test' %}daily-test{% endif %}">
+                                {{ ass.assessment_type.name }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
                     <td>{{ ass.date|date:"M j, Y" }}</td>
                     <td>{{ ass.max_points }}</td>
                     <td class="class-avg-col">
                         {% if ass.avg_percentage %}
-                            {{ ass.avg_percentage|floatformat:1 }}%
+                           <span class="class-avg-value">{{ ass.avg_percentage|floatformat:"-1" }}%</span>
                         {% else %}
-                            —
+                            <span class="class-avg-empty">—</span>
                         {% endif %}
                     </td>
-                    <td>
-                        <div class="action-buttons">
-                            <a href="{% url 'enter_scores' ass.id %}" class="btn-action-table btn-scores">
-                                <i class="bi bi-pencil-square"></i> Scores
-                            </a>
-                        <button class="btn-action-table btn-edit edit-assessment-btn" 
+                    <td class="action-buttons-cell">
+                        <a href="{% url 'enter_scores' ass.id %}" class="btn-action-table btn-scores" title="Enter scores">
+                            <i class="bi bi-pencil-square"></i> <span>Scores</span>
+                        </a>
+                        <button class="btn-action-table btn-edit edit-assessment-btn"
                             data-id="{{ ass.id }}"
                             data-name="{{ ass.name|escapejs }}"
                             data-learning="{{ ass.learning_objective|default:''|escapejs }}"
                             data-type="{{ ass.assessment_type.name|default:'' }}"
                             data-date="{{ ass.date|date:'Y-m-d' }}"
                             data-max="{{ ass.max_points }}"
-                            data-notes="{{ ass.notes|default:''|escapejs }}">
-                        <i class="bi bi-pencil"></i> Edit
+                            data-notes="{{ ass.notes|default:''|escapejs }}"
+                            title="Edit assessment">
+                            <i class="bi bi-pencil"></i> <span>Edit</span>
                         </button>
-                        <button class="btn-action-table btn-delete delete-assessment-btn" 
-                            data-id="{{ ass.id }}" data-name="{{ ass.name|escapejs }}">
-                            <i class="bi bi-trash3"></i> Delete
+                        <button class="btn-action-table btn-delete delete-assessment-btn"
+                            data-id="{{ ass.id }}"
+                            data-name="{{ ass.name|escapejs }}"
+                            title="Delete assessment">
+                            <i class="bi bi-trash3"></i> <span>Delete</span>
                         </button>
-                    </div>
-                </td>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 {% else %}
-    <p>No assessments yet. Click "Add New Assessment" to create one.</p>
+    <div class="empty-state">
+        <i class="bi bi-journal-x"></i>
+        <h5>No assessments yet</h5>
+        <p>Click <strong>Add Assessment</strong> in the header above to create your first one.</p>
+    </div>
 {% endif %}

@@ -1,27 +1,34 @@
-<table class="table">
+<table class="table attendance-table">
     <thead>
         <tr>
-            <th>No.</th>
-            <th>Student Name</th>
-            <th>Status</th>
+            <th class="col-no">No.</th>
+            <th class="col-name">Student Name</th>
+            <th class="col-status">Status</th>
         </tr>
     </thead>
     <tbody>
         {% for student, current_status in students_with_status %}
-        <tr>
+        <tr data-student-id="{{ student.id }}">
             <td>{{ forloop.counter }}</td>
-            <td>{{ student.name }}</td>
             <td>
-                <select name="status_{{ student.id }}" class="form-select">
-                    {% for value, label in status_choices %}
-                        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+                <span class="student-name-text">{{ student.name }}</span>
+            </td>
+            <td>
+                <div class="status-select-wrapper">
+                    <select name="status_{{ student.id }}" class="form-select status-select status-{{ current_status|default:'none' }}">
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </td>
         </tr>
         {% empty %}
         <tr>
-            <td colspan="3">No students enrolled in this class.</td>
+            <td colspan="3" class="text-center py-4 text-muted">
+                <i class="bi bi-people" style="font-size: 1.5rem; opacity: 0.4;"></i>
+                <div class="mt-1">No students enrolled in this class.</div>
+            </td>
         </tr>
         {% endfor %}
     </tbody>

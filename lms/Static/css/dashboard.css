@@ -7,13 +7,6 @@ body {
 }
 
 /* ============================================================
-   NAVBAR
-============================================================ */
-.navbar.bg-dark { background-color: #003f5c !important; }
-.navbar .navbar-brand, .navbar .nav-link { color: #ffffff !important; }
-.navbar .nav-link:hover { color: #cccccc !important; }
-
-/* ============================================================
    SEARCH BAR & FILTER
 ============================================================ */
 .search-filter-bar {
@@ -117,14 +110,6 @@ body {
 }
 .table tbody tr:hover td { background-color: #f8f9fa; }
 
-/* Kolom tabel */
-.table th:first-child, .table td:first-child { width: 5%; text-align: center; }
-.table th:nth-child(2), .table td:nth-child(2) { width: 36%; text-align: center; }
-.table th:nth-child(3), .table td:nth-child(3) { width: 13%; text-align: center; }
-.table th:nth-child(4), .table td:nth-child(4) { width: 15%; text-align: center; }
-.table th:nth-child(5), .table td:nth-child(5) { width: 18%; text-align: center; }
-.table th:nth-child(6), .table td:nth-child(6) { width: 15%; white-space: nowrap; text-align: center; }
-
 /* ============================================================
    NAMA SISWA & IKON AKSI
 ============================================================ */
@@ -168,7 +153,6 @@ body {
     box-shadow: none !important;
 }
 
-/* Warna tombol */
 .btn-assessments { background-color: #2563eb; }
 .btn-excel { background-color: #356d36; }
 .btn-delete { background-color: #ef4444; }
@@ -177,15 +161,15 @@ body {
 .btn-reset-points { background-color: #991b1b; }
 .btn-reset-class { background-color: #991b1b; }
 .btn-download-all { background-color: #356d36; }
+.btn-settings { background-color: #64748b; }
 
-/* Hover warna */
 .btn-assessments:hover, .btn-mark:hover { background-color: #1e4fd9; }
 .btn-excel:hover, .btn-download-all:hover { background-color: #114415; }
+.btn-settings:hover { background-color: #475569; }
 .btn-delete:hover { background-color: #b13030; }
 .btn-bulk:hover { background-color: #0d9668; }
 .btn-reset-points:hover, .btn-reset-class:hover { background-color: #701111; }
 
-/* Tombol kecil + / - */
 .btn-plus {
     background-color: #10b981;
     color: white;
@@ -198,36 +182,6 @@ body {
     border: none;
 }
 .btn-minus:hover { background-color: #b13030; }
-.btn.btn-plus.btn-action.btn-sm,
-.btn.btn-minus.btn-action.btn-sm {
-    font-size: 0.7rem !important;
-    padding: 0.3rem 0.52rem !important;
-}
-
-/* Semua tombol action hover/focus tetap putih */
-.btn-action:hover, .btn-action:focus,
-.btn-plus:hover, .btn-plus:focus,
-.btn-minus:hover, .btn-minus:focus,
-.btn-reset-points:hover, .btn-reset-points:focus,
-.btn-reset-class:hover, .btn-reset-class:focus,
-.btn-assessments:hover, .btn-assessments:focus,
-.btn-excel:hover, .btn-excel:focus,
-.btn-mark:hover, .btn-mark:focus,
-.btn-bulk:hover, .btn-bulk:focus,
-.btn-download-all:hover, .btn-download-all:focus,
-.btn-delete:hover, .btn-delete:focus {
-    color: white !important;
-}
-
-/* Tombol active/focus */
-.btn-plus:active, .btn-plus:focus { background-color: #10b981 !important; box-shadow: none !important; }
-.btn-minus:active, .btn-minus:focus { background-color: #ef4444 !important; box-shadow: none !important; }
-.btn-assessments:active, .btn-assessments:focus, .btn-mark:active, .btn-mark:focus { background-color: #2563eb !important; box-shadow: none !important; }
-.btn-excel:active, .btn-excel:focus, .btn-download-all:active, .btn-download-all:focus { background-color: #356d36 !important; box-shadow: none !important; }
-.btn-delete:active, .btn-delete:focus { background-color: #ef4444 !important; box-shadow: none !important; }
-.btn-bulk:active, .btn-bulk:focus { background-color: #10b981 !important; box-shadow: none !important; }
-.btn-reset-points:active, .btn-reset-points:focus,
-.btn-reset-class:active, .btn-reset-class:focus { background-color: #991b1b !important; box-shadow: none !important; }
 
 /* ============================================================
    HIGHLIGHT BOX & JAM
@@ -291,22 +245,8 @@ body {
 .sidebar-btn i { font-size: 1rem; width: 20px; text-align: center; }
 
 /* ============================================================
-   TOMBOL PARENT CODES
-============================================================ */
-.btn-parent-codes { background-color: #6f42c1; color: white; border: none; }
-.btn-parent-codes:hover { background-color: #5a379c; }
-.btn-parent-codes:hover,
-.btn-parent-codes:focus,
-.btn-parent-codes:active {
-    background-color: #5a379c !important;
-    color: white !important;
-    box-shadow: none !important;
-}
-
-/* ============================================================
    RANDOMIZER
 ============================================================ */
-/* Tab navigasi */
 #randomizerTab {
     background: #f8fafc;
     border-radius: 2rem;
@@ -331,7 +271,6 @@ body {
     box-shadow: 0 2px 6px rgba(0,63,92,0.3);
 }
 
-/* Tombol randomizer umum */
 .randomizer-btn {
     display: inline-flex;
     align-items: center;
@@ -348,14 +287,11 @@ body {
 }
 .randomizer-btn:hover { filter: brightness(0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .randomizer-btn:active { filter: brightness(0.85); }
-
-/* Varian warna */
 .randomizer-btn-primary { background-color: #003f5c; color: white; }
 .randomizer-btn-success { background-color: #10b981; color: white; }
 .randomizer-btn-outline { background: transparent; border: 1.5px solid #cbd5e1; color: #4a5568; }
 .randomizer-btn-danger { background-color: #fee2e2; color: #dc3545; border: 1.5px solid #f5c2c7; }
 
-/* Team card */
 .team-card {
     border: none;
     border-radius: 1rem;
@@ -381,7 +317,6 @@ body {
     background: transparent;
 }
 
-/* Name spinner */
 #wheelResult {
     background: #f8fafc;
     border-radius: 1.5rem;
@@ -398,7 +333,6 @@ body {
     user-select: none;
 }
 
-/* Pair Table */
 #pairsTableBody td {
     font-weight: 500;
     padding: 0.6rem;
@@ -406,7 +340,6 @@ body {
     border-color: #e9ecef;
 }
 
-/* Seat Plan */
 .seat-plan-wrapper {
     background: #f8fafc;
     border-radius: 1rem;
@@ -437,7 +370,6 @@ body {
     color: #94a3b8;
 }
 
-/* Layout buttons */
 .seat-layout-btn {
     padding: 0.4rem 0.8rem;
     border-radius: 0.5rem;
@@ -456,7 +388,6 @@ body {
 }
 .seat-layout-btn:hover:not(.active) { background: #f1f5f9; }
 
-/* Efek putih di randomizer modal */
 #randomizerModal .btn:hover,
 #randomizerModal .btn:focus,
 #randomizerModal .btn:active,
@@ -472,13 +403,9 @@ body {
     opacity: 0.75;
 }
 
-/* History list */
 .history-clickable { cursor: pointer; transition: background 0.15s; }
 .history-clickable:hover { background-color: #f8fafc; }
 
-/* ============================================================
-   DROPDOWN ASSESSMENTS PENDING (RAPI & KECIL)
-============================================================ */
 #pendingClassDropdown {
     background-color: #ffffff !important;
     border: 1px solid #dee2e6 !important;
@@ -486,18 +413,16 @@ body {
     box-shadow: 0 6px 16px rgba(0,0,0,0.08) !important;
     padding: 0.25rem 0 !important;
     min-width: 200px !important;
-    z-index: 1060 !important; /* di atas offcanvas */
+    z-index: 1060 !important;
 }
-
 #pendingClassDropdown li {
     list-style: none !important;
     margin: 0 !important;
     padding: 0 !important;
 }
-
 .pending-class-item {
     display: flex !important;
-    justify-content: space-between !important;  /* nama kiri, badge kanan */
+    justify-content: space-between !important;
     align-items: center !important;
     font-size: 0.72rem !important;
     font-weight: 500 !important;
@@ -507,12 +432,10 @@ body {
     white-space: nowrap !important;
     transition: background 0.15s ease !important;
 }
-
 .pending-class-item:hover {
     background-color: #f1f5f9 !important;
     color: #1e293b !important;
 }
-
 .pending-class-name {
     margin-right: 10px !important;
     overflow: hidden;
@@ -520,18 +443,234 @@ body {
     white-space: nowrap;
     flex: 1 1 auto;
 }
-
 .pending-count-badge {
     font-size: 0.65rem !important;
     font-weight: 600 !important;
     padding: 0.15em 0.5em !important;
     border-radius: 0.35rem !important;
     flex-shrink: 0;
-    margin-left: auto; /* dorong ke kanan */
+    margin-left: auto;
 }
 
 /* ============================================================
-   MOBILE RESPONSIVE (Gabungan)
+   BEHAVIOR TABLE — Column widths
+============================================================ */
+.behavior-table {
+    table-layout: fixed;
+}
+.behavior-table .col-no      { width: 3%;  white-space: nowrap; }
+.behavior-table .col-name    { width: 28%; }
+.behavior-table .col-att     { width: 5%;  white-space: nowrap; }
+.behavior-table .col-actions { width: 39%; }
+.behavior-table .col-summary { width: 16%; }
+.behavior-table .col-final   { width: 9%;  white-space: nowrap; }
+
+.behavior-actions-cell {
+    padding: 0.5rem 0.35rem !important;
+    vertical-align: middle;
+}
+
+/* ============================================================
+   BEHAVIOR BUTTONS — Outline Style (Option C)
+============================================================ */
+.behavior-btn-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Base button */
+.behavior-btn-strip .btn {
+    font-size: 0.72rem !important;
+    padding: 0.32rem 0.42rem !important;
+    line-height: 1;
+    min-width: 32px;
+    border-radius: 0.5rem;
+    font-weight: 700;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    color: #475569;
+    transition: background 0.15s ease, color 0.15s ease,
+                border-color 0.15s ease, transform 0.1s ease,
+                box-shadow 0.15s ease;
+    box-shadow: none;
+    letter-spacing: -0.2px;
+}
+.behavior-btn-strip .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+}
+.behavior-btn-strip .btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* Positive: outline green */
+.behavior-btn-strip .btn-plus {
+    color: #047857;
+    border-color: #34d399;
+    background: #ffffff;
+}
+.behavior-btn-strip .btn-plus:hover {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
+}
+.behavior-btn-strip .btn-plus:active {
+    background: #059669;
+    border-color: #059669;
+    color: #ffffff;
+}
+
+/* Negative: outline red */
+.behavior-btn-strip .btn-minus {
+    color: #b91c1c;
+    border-color: #f87171;
+    background: #ffffff;
+}
+.behavior-btn-strip .btn-minus:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+.behavior-btn-strip .btn-minus:active {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #ffffff;
+}
+
+/* Divider */
+.behavior-btn-strip .strip-divider {
+    width: 1px;
+    height: 22px;
+    background: #e2e8f0;
+    margin: 0 5px;
+}
+
+/* Icon buttons (reset & convert) */
+.behavior-btn-strip .btn-icon {
+    min-width: 32px;
+    padding: 0.32rem 0.42rem !important;
+    font-size: 0.78rem !important;
+    border-radius: 0.5rem;
+}
+
+/* Reset: outline gray */
+.behavior-btn-strip .btn-reset-icon {
+    background: #ffffff !important;
+    color: #64748b !important;
+    border: 1.5px solid #cbd5e1 !important;
+}
+.behavior-btn-strip .btn-reset-icon:hover {
+    background: #64748b !important;
+    color: #ffffff !important;
+    border-color: #64748b !important;
+}
+
+/* Convert: solid amber */
+.behavior-btn-strip .btn-convert-icon {
+    background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%) !important;
+    color: #ffffff !important;
+    border: 1.5px solid #d97706 !important;
+    box-shadow: 0 1px 3px rgba(217,119,6,0.3);
+}
+.behavior-btn-strip .btn-convert-icon:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%) !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 3px 7px rgba(217,119,6,0.4);
+}
+.behavior-btn-strip .btn-convert-icon:disabled {
+    background: #f8fafc !important;
+    color: #cbd5e1 !important;
+    border: 1.5px solid #e5e7eb !important;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+/* ============================================================
+   BEHAVIOR SUMMARY — Compact horizontal
+============================================================ */
+.behavior-summary-col {
+    padding: 0.5rem 0.35rem !important;
+    vertical-align: middle;
+}
+.summary-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+.summary-points,
+.summary-avail {
+    white-space: nowrap;
+}
+.summary-avail strong {
+    color: #003f5c;
+}
+.summary-divider {
+    color: #cbd5e1;
+}
+.summary-row .badge {
+    font-size: 0.6rem;
+    padding: 0.2em 0.45em;
+    font-weight: 500;
+}
+
+/* ============================================================
+   MOBILE STUDENT CARDS — 3-row compact
+============================================================ */
+.student-card-mobile {
+    padding: 0.75rem !important;
+}
+.student-card-mobile .mobile-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.student-card-mobile .mobile-name {
+    font-weight: 600;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 65%;
+}
+.student-card-mobile .behavior-btn-strip {
+    margin-bottom: 0.4rem;
+}
+.student-card-mobile .behavior-btn-strip .btn {
+    flex: 1 1 0;
+    min-width: 34px;
+    font-size: 0.72rem !important;
+    padding: 0.32rem 0.25rem !important;
+}
+
+.mobile-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    margin-top: 0.35rem;
+}
+.mobile-meta-row .meta-sep {
+    color: #cbd5e1;
+}
+.mobile-meta-row .badge {
+    font-size: 0.62rem;
+    padding: 0.22em 0.5em;
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE
 ============================================================ */
 @media (max-width: 767.98px) {
     body { font-size: 0.85rem; }
@@ -540,23 +679,19 @@ body {
         padding-right: 8px !important;
     }
     h1 { font-size: 1.3rem !important; }
-
     .search-filter-bar { border-radius: 1rem !important; }
     .search-input, .class-filter { width: 100% !important; }
     .search-wrapper { max-width: 100% !important; }
-
     .search-filter-bar .dashboard-section-title {
         width: 100%;
         margin-bottom: 0.75rem;
     }
     .search-filter-bar .flex-md-row { width: 100%; }
-
     .highlight-box {
         font-size: 0.7rem;
         padding: 4px 10px;
         margin-top: 0.5rem;
     }
-
     .dashboard-section-title {
         font-size: 1rem;
         border-left-width: 3px;
@@ -567,70 +702,36 @@ body {
         text-overflow: ellipsis;
         max-width: 55%;
     }
-
     .card-header { padding: 0.75rem 1rem; }
     .class-card .card-body { padding: 0.5rem 0.75rem; }
-
     .table thead th, .table tbody td {
         padding: 0.35rem 0.25rem;
         font-size: 0.75rem;
     }
-    .table th:nth-child(2), .table td:nth-child(2) { width: 30%; }
-
     .btn-action-table {
         font-size: 0.65rem;
         padding: 0.2rem 0.3rem;
     }
-
-    /* Tombol aksi kelas mobile */
     .class-card .card-header .d-md-none .btn-action {
         font-size: 0.7rem;
         padding: 0.25rem 0.5rem;
         margin-bottom: 0.25rem;
     }
-
-    .action-buttons {
-        justify-content: center !important;
-    }
-
-    /* Mobile student cards */
-    .student-card-mobile {
-        font-size: 0.85rem;
-        transition: all 0.15s ease;
-        background: #fff;
-    }
-    .student-card-mobile:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-    .student-card-mobile .badge {
-        font-size: 0.7rem;
-    }
+    .action-buttons { justify-content: center !important; }
+    .student-card-mobile .badge { font-size: 0.7rem; }
     .student-card-mobile .btn-sm {
         font-size: 0.7rem !important;
         padding: 0.25rem 0.5rem !important;
     }
 }
 
-/* Tombol hanya ikon (sangat kecil) */
 @media (max-width: 575.98px) {
     .btn-scores span,
     .btn-edit span,
-    .btn-delete span {
-        display: none;
-    }
+    .btn-delete span { display: none; }
     .btn-scores i,
     .btn-edit i,
-    .btn-delete i {
-        margin: 0;
-    }
-    .btn-plus, .btn-minus {
-        padding: 0.25rem 0.4rem !important;
-        font-size: 0.7rem !important;
-    }
-    .table th:nth-child(6), .table td:nth-child(6) {
-        width: auto;
-        white-space: nowrap;
-    }
+    .btn-delete i { margin: 0; }
 }
 
 /* ============================================================
@@ -644,8 +745,6 @@ body {
 #notificationBadge {
     margin-left: auto;
 }
-
-/* Paksa dropdown kecil & badge di kanan (desktop) */
 @media (min-width: 768px) {
     .pending-class-item {
         display: flex !important;
@@ -657,12 +756,209 @@ body {
         font-size: 0.6rem !important;
         padding: 0.15em 0.45em !important;
         margin-left: auto !important;
-        order: 2 !important; /* memastikan di paling kanan */
+        order: 2 !important;
     }
     .pending-class-name {
         order: 1 !important;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+}
+
+/* ============================================================
+   ANDHIVIE THEME OVERRIDES (must be at the end of file)
+   - Table header
+   - Class card header
+   - Action buttons
+   - Table rows
+============================================================ */
+
+/* ---------- Class card header ---------- */
+.class-card .card-header {
+    background: linear-gradient(135deg, #FAF6F1 0%, #F5EDE5 100%);
+    border-bottom: 1px solid #EDE5DC;
+    padding: 1rem 1.25rem;
+    border-radius: 1rem 1rem 0 0;
+}
+.class-card .class-name {
+    font-size: 1.05rem;
+    color: var(--andhivie-charcoal, #1F2937);
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+/* ---------- Table header — Deep Red gradient ---------- */
+.behavior-table thead th {
+    background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.72rem;
+    padding: 0.7rem 0.5rem;
+    border: none;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* ---------- Table body rows ---------- */
+.behavior-table tbody td {
+    padding: 0.7rem 0.5rem;
+    border-bottom: 1px solid #F5EDE5;
+    background: #ffffff;
+    vertical-align: middle;
+    transition: background 0.15s ease;
+}
+.behavior-table tbody tr:hover td {
+    background: #FFFCFA;
+}
+.behavior-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ---------- Action buttons (top of class card) ---------- */
+.class-card .card-header .btn-action {
+    font-size: 0.8rem;
+    padding: 0.42rem 0.9rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: none;
+    letter-spacing: 0.1px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.class-card .card-header .btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    filter: brightness(1.05);
+}
+.class-card .card-header .btn-action:active {
+    transform: translateY(0);
+}
+
+/* Button colors — override old ones with !important */
+.btn-settings {
+    background: #6B7280 !important;
+    color: #ffffff !important;
+}
+.btn-settings:hover {
+    background: #4B5563 !important;
+    color: #ffffff !important;
+}
+
+.btn-assessments {
+    background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%) !important;
+    color: #ffffff !important;
+}
+.btn-assessments:hover {
+    background: linear-gradient(135deg, #B8283E 0%, #9B1B30 100%) !important;
+    color: #ffffff !important;
+}
+
+.btn-excel,
+.btn-download-all {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    color: #ffffff !important;
+}
+.btn-excel:hover,
+.btn-download-all:hover {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+    color: #ffffff !important;
+}
+
+.btn-delete {
+    background: #DC2626 !important;
+    color: #ffffff !important;
+}
+.btn-delete:hover {
+    background: #B91C1C !important;
+    color: #ffffff !important;
+}
+
+/* ---------- Bottom action buttons ---------- */
+.action-buttons .btn-action {
+    font-size: 0.82rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.55rem;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.action-buttons .btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+    filter: brightness(1.05);
+}
+
+.action-buttons .btn-mark {
+    background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%) !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-mark:hover {
+    background: linear-gradient(135deg, #B8283E 0%, #9B1B30 100%) !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-bulk {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-bulk:hover {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-reset-points {
+    background: #D97706 !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-reset-points:hover {
+    background: #B45309 !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-reset-class {
+    background: #DC2626 !important;
+    color: #ffffff !important;
+}
+.action-buttons .btn-reset-class:hover {
+    background: #B91C1C !important;
+    color: #ffffff !important;
+}
+
+/* ---------- Student name + icons ---------- */
+.student-name-container {
+    gap: 0.5rem;
+}
+.student-name-container > span {
+    font-weight: 500;
+    color: var(--andhivie-charcoal, #1F2937);
+    font-size: 0.9rem;
+}
+.student-name-container .icons-group a,
+.student-name-container .icons-group span {
+    font-size: 1rem;
+    opacity: 0.75;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.student-name-container .icons-group a:hover,
+.student-name-container .icons-group span:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* ---------- Empty state row ---------- */
+.behavior-table tbody tr td[colspan] {
+    padding: 2rem 1rem;
+    color: var(--andhivie-gray, #6B7280);
+    font-style: italic;
+    text-align: center;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 767.98px) {
+    .class-card .card-header {
+        padding: 0.85rem 1rem;
+    }
+    .class-card .class-name {
+        font-size: 0.95rem;
     }
 }

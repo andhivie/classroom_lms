@@ -1,195 +1,443 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Enter Scores</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter Scores — {{ assessment.name }}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
     <style>
-        /* Hanya CSS spesifik halaman ini */
-        .card-body {
-            padding: 1rem 1.5rem 1.5rem;
+        body {
+            background: #FDF8F4;
+            padding-bottom: 90px;
+        }
+        .scores-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
 
-        .table tbody td {
-            padding: 0.7rem 0.5rem;
-            border-bottom: 1px solid #e9ecef;
-            background-color: white;
-            vertical-align: middle;
-            transition: background-color 0.15s ease;
+        /* ---------- Page header ---------- */
+        .scores-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
         }
-        .table tbody td input {
-            font-size: 0.92rem;  /* perbesar font input */
+        .scores-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
         }
-        .table tbody tr:hover td {
-            background-color: #f8f9fa;
+        .scores-title i {
+            color: #9B1B30;
+            font-size: 1.15rem;
         }
-
-        .table th:first-child,
-        .table td:first-child {
-            text-align: center;
-            width: 50px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        .table thead th:first-child {
-        color: white;
-        background-color: #003f5c;
-        }   
-        .table th:nth-child(2) { text-align: center; }
-        .table td:nth-child(2) {
-            text-align: left;
-            width: 40%;
-            font-weight: 500;
-            color: #2c3e50;
-        }
-        .table th:nth-child(3),
-        .table td:nth-child(3) {
-            text-align: center;
-            width: 20%;
-        }
-        .table th:nth-child(4),
-        .table td:nth-child(4) {
-            text-align: center;
-        }
-
-        .form-control {
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.6rem;
+        .scores-subtitle {
             font-size: 0.85rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            color: #6B7280;
+            margin: 0.15rem 0 0 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
-        .form-control:focus {
-            border-color: #003f5c;
-            box-shadow: 0 0 0 0.2rem rgba(0,63,92,0.1);
-        }
-
-        .max-points-hint {
-            font-size: 0.75rem;
-            font-weight: 400;
-            text-transform: none;
-            color: #ced4da;
-        }
-
-        /* Tombol Back to Assessments – putih dengan hover navy */
-        .btn-back {
-            background-color: #ffffff;
-            border: 1px solid #003f5c;
-            color: #003f5c;
+        .assessment-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
             border-radius: 0.5rem;
-            font-weight: 500;
-            padding: 0.4rem 1rem;
-            transition: all 0.2s ease;
+            padding: 0.22rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .btn-back {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.15s ease;
+            white-space: nowrap;
         }
         .btn-back:hover {
-            background-color: #003f5c;
-            color: white;
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+
+        /* ---------- Table card ---------- */
+        .scores-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+
+        .scores-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            table-layout: fixed;
+        }
+        .scores-table thead th {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.72rem;
+            padding: 0.8rem 0.6rem;
+            border: none;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .scores-table thead th.col-no    { width: 6%;  }
+        .scores-table thead th.col-name  { width: 36%; }
+        .scores-table thead th.col-score { width: 22%; }
+        .scores-table thead th.col-notes { width: 36%; }
+
+        .scores-table tbody td {
+            padding: 0.5rem 0.6rem;
+            border-bottom: 1px solid #F5EDE5;
+            background: #ffffff;
+            vertical-align: middle;
+            font-size: 0.9rem;
+            color: #1F2937;
+        }
+        .scores-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .scores-table tbody tr:hover td {
+            background: #FFFCFA;
+        }
+        .scores-table td.col-no {
+            text-align: center;
+            color: #9CA3AF;
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+        .scores-table td.col-name {
+            font-weight: 600;
+            color: #1F2937;
+            padding-left: 1rem;
+        }
+        .student-name-text {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .scores-table td.col-score,
+        .scores-table td.col-notes {
+            text-align: center;
+        }
+
+        /* Score input */
+        .score-input-wrap {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 130px;
+        }
+        .score-input {
+            border: 1.5px solid #E8E1DA;
+            border-radius: 0.5rem;
+            padding: 0.42rem 0.75rem;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #1F2937;
+            background: #FAF6F1;
+            text-align: center;
+            width: 100%;
+            transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+            -moz-appearance: textfield;
+        }
+        .score-input::-webkit-outer-spin-button,
+        .score-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .score-input::placeholder {
+            color: #C9C0B5;
+            font-weight: 400;
+        }
+        .score-input:focus {
+            outline: none;
+            border-color: #9B1B30;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
+        }
+        .score-input.has-value {
+            border-color: #A7F3D0;
+            background: #F0FDF9;
+            color: #047857;
+        }
+
+        /* Notes input */
+        .notes-input {
+            border: 1.5px solid #E8E1DA;
+            border-radius: 0.5rem;
+            padding: 0.42rem 0.75rem;
+            font-size: 0.82rem;
+            color: #4B5563;
+            background: #FAF6F1;
+            width: 100%;
+            transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .notes-input::placeholder {
+            color: #C9C0B5;
+        }
+        .notes-input:focus {
+            outline: none;
+            border-color: #9B1B30;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
+        }
+
+        /* Info hint above table */
+        .score-hint {
+            background: linear-gradient(135deg, #FDF3F0 0%, #FBF0EA 100%);
+            border-bottom: 1px solid #F0DDD5;
+            padding: 0.6rem 1.25rem;
+            font-size: 0.8rem;
+            color: #7A1526;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .score-hint i {
+            color: #9B1B30;
+            font-size: 0.95rem;
+        }
+        .score-hint strong {
+            font-weight: 700;
+        }
+
+        /* ---------- Sticky bottom bar ---------- */
+        .scores-bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border-top: 1px solid #F0EAE3;
+            padding: 0.75rem 1.25rem;
+            box-shadow: 0 -2px 8px rgba(31, 41, 55, 0.04);
+            z-index: 100;
+        }
+        .scores-bottom-bar .inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
+        }
+        .btn-save {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            border: none;
+            padding: 0.5rem 1.4rem;
+            border-radius: 0.6rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            box-shadow: 0 3px 10px rgba(155, 27, 48, 0.22);
+            transition: transform 0.15s ease, box-shadow 0.18s ease;
+            height: 40px;
+        }
+        .btn-save:hover:not(:disabled) {
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(155, 27, 48, 0.30);
+        }
+        .btn-save:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .btn-cancel {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            padding: 0.5rem 1.15rem;
+            border-radius: 0.6rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+        }
+        .btn-cancel:hover {
+            background: #FAF6F1;
+            color: #1F2937;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 767.98px) {
+            .scores-title { font-size: 1.05rem; }
+            .scores-header { flex-direction: column; align-items: flex-start; }
+            .scores-table thead th.col-notes { display: none; }
+            .scores-table tbody td.col-notes { display: none; }
+            .scores-table thead th.col-name { width: 55%; }
+            .scores-table thead th.col-score { width: 39%; }
+            .scores-table td.col-name { padding-left: 0.6rem; font-size: 0.85rem; }
+            .score-input-wrap { max-width: 100px; }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    {% include 'lms/_sidebar.html' %}
+    {% include 'lms/_navbar.html' %}
 
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-pencil-square me-2"></i>
-                    Enter Scores for {{ assessment.name }} — {{ class_obj.name }}
-                </h5>
-                <a href="{% url 'class_assessments' class_obj.id %}" class="btn btn-back btn-sm">
-                    <i class="bi bi-arrow-left me-1"></i> Back to Assessments
+    <div class="container-fluid mt-3 mb-4">
+        <div class="scores-page">
+
+            <!-- HEADER -->
+            <div class="scores-header">
+                <div>
+                    <h1 class="scores-title">
+                        <i class="bi bi-pencil-square"></i>
+                        Enter Scores
+                    </h1>
+                    <p class="scores-subtitle">
+                        {{ assessment.name }}
+                        <span class="assessment-badge">
+                            <i class="bi bi-tag-fill"></i>
+                            {{ assessment.assessment_type.name|default:"—" }}
+                        </span>
+                    </p>
+                </div>
+                <a href="{% url 'class_assessments' class_obj.id %}" class="btn-back">
+                    <i class="bi bi-arrow-left"></i> Back to Assessments
                 </a>
             </div>
-            <div class="card-body">
-                <form id="scoresForm" method="post">
-                    {% csrf_token %}
+
+            <!-- TABLE CARD -->
+            <form id="scoresForm" method="post">
+                {% csrf_token %}
+                <div class="scores-card">
+
+                    <div class="score-hint">
+                        <i class="bi bi-info-circle-fill"></i>
+                        <span>Max score is <strong>{{ assessment.max_points|floatformat:"-1" }}</strong>. Leave a field empty to keep the current value.</span>
+                    </div>
+
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="scores-table">
                             <thead>
                                 <tr>
-                                    <th>No.</th>
-                                    <th>Student Name</th>
-                                    <th>Score <span class="max-points-hint">(max {{ assessment.max_points }})</span></th>
-                                    <th>Notes</th>
+                                    <th class="col-no">No.</th>
+                                    <th class="col-name">Student Name</th>
+                                    <th class="col-score">Score <span style="opacity:.75;font-weight:400;">/ {{ assessment.max_points|floatformat:"-1" }}</span></th>
+                                    <th class="col-notes">Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for student, current_score, current_notes in students_with_scores %}
                                 <tr>
-                                    <td>{{ forloop.counter }}</td>
-                                    <td>{{ student.name }}</td>
-                                    <td>
-                                        <input type="number" step="any" name="score_{{ student.id }}" 
-                                               value="{{ current_score|default:'' }}" 
-                                               class="form-control" min="0" max="{{ assessment.max_points }}" 
-                                               placeholder="0-{{ assessment.max_points }}">
+                                    <td class="col-no">{{ forloop.counter }}</td>
+                                    <td class="col-name">
+                                        <span class="student-name-text" title="{{ student.name }}">{{ student.name }}</span>
                                     </td>
-                                    <td>
-                                        <input type="text" name="notes_{{ student.id }}" 
-                                               value="{{ current_notes }}" 
-                                               class="form-control" placeholder="Optional note">
+                                    <td class="col-score">
+                                        <div class="score-input-wrap">
+                                            <input type="number"
+                                                   step="any"
+                                                   name="score_{{ student.id }}"
+                                                   value="{{ current_score|default:'' }}"
+                                                   class="form-control score-input {% if current_score is not None %}has-value{% endif %}"
+                                                   min="0"
+                                                   max="{{ assessment.max_points }}"
+                                                   placeholder="—"
+                                                   data-score-input>
+                                        </div>
+                                    </td>
+                                    <td class="col-notes">
+                                        <input type="text"
+                                               name="notes_{{ student.id }}"
+                                               value="{{ current_notes }}"
+                                               class="notes-input"
+                                               placeholder="Optional note">
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted">No students enrolled in this class.</td>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        <i class="bi bi-people" style="font-size: 1.5rem; opacity: 0.4;"></i>
+                                        <div class="mt-1">No students enrolled in this class.</div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i> Save Scores</button>
-                        <a href="{% url 'class_assessments' class_obj.id %}" class="btn btn-secondary">Cancel</a>
-                    </div>
-                </form>
-            </div>
+
+                </div>
+            </form>
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
+    <!-- STICKY BOTTOM BAR -->
+    <div class="scores-bottom-bar">
+        <div class="inner">
+            <a href="{% url 'class_assessments' class_obj.id %}" class="btn-cancel">Cancel</a>
+            <button type="submit" form="scoresForm" class="btn-save" id="saveBtn">
+                <i class="bi bi-check-lg"></i>
+                <span>Save Scores</span>
+            </button>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
+        // Highlight filled inputs
+        document.querySelectorAll('[data-score-input]').forEach(input => {
+            input.addEventListener('input', function () {
+                if (this.value.trim() !== '') {
+                    this.classList.add('has-value');
+                } else {
+                    this.classList.remove('has-value');
+                }
+            });
+        });
 
-        // csrfToken sudah disediakan sidebar.js secara global
-
+        // ---------- Save form ----------
         const form = document.getElementById('scoresForm');
+        const saveBtn = document.getElementById('saveBtn');
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+            const originalText = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
 
             const formData = new FormData(form);
             try {
@@ -207,7 +455,7 @@
                         type: 'success',
                         text: data.message
                     }));
-                    addActivityLog('Scores saved');
+                    if (typeof addActivityLog === 'function') addActivityLog('Scores saved');
                     window.location.href = "{% url 'class_assessments' class_obj.id %}";
                 } else {
                     showNotification(data.message || 'Failed to save scores.', 'danger');
@@ -216,8 +464,8 @@
                 console.error('Error:', error);
                 showNotification('Network error. Please try again.', 'danger');
             } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
             }
         });
     </script>

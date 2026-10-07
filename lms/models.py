@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class Semester(models.Model):
     name = models.CharField(max_length=100)
     start_date = models.DateField()
@@ -10,6 +11,7 @@ class Semester(models.Model):
     def __str__(self):
         return self.name
 
+
 class Class(models.Model):
     name = models.CharField(max_length=100)
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='classes')
@@ -18,8 +20,27 @@ class Class(models.Model):
     positive_behavior_cap = models.IntegerField(default=5, help_text="Max positive points for 100%")
     negative_behavior_cap = models.IntegerField(default=5, help_text="Max negative points for 0% contribution")
 
+    # ----- Priority 2: Behavior Point System configuration -----
+    min_points_for_daily_test = models.IntegerField(
+        default=5,
+        help_text="Minimum available points required to take a Daily Test. Set 0 to disable."
+    )
+    points_per_conversion = models.IntegerField(
+        default=25,
+        help_text="Available points needed for one bonus conversion."
+    )
+    bonus_per_conversion = models.IntegerField(
+        default=2,
+        help_text="Academic bonus gained per conversion."
+    )
+    max_bonus = models.IntegerField(
+        default=10,
+        help_text="Maximum total bonus per student per semester."
+    )
+
     def __str__(self):
         return f"{self.name} - {self.semester}"
+
 
 class Student(models.Model):
     name = models.CharField(max_length=200, db_index=True)
@@ -30,6 +51,7 @@ class Student(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Enrollment(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='enrollments')
@@ -44,6 +66,7 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student} in {self.class_obj}"
 
+
 class UserProfile(models.Model):
     ROLE_CHOICES = (
         ('teacher', 'Teacher'),
@@ -57,6 +80,7 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"
 
+
 class AttendanceSession(models.Model):
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='attendance_sessions')
     date = models.DateField(db_index=True)
@@ -68,6 +92,7 @@ class AttendanceSession(models.Model):
 
     def __str__(self):
         return f"{self.class_obj.name} - {self.date}"
+
 
 class AttendanceRecord(models.Model):
     STATUS_CHOICES = (
@@ -89,6 +114,7 @@ class AttendanceRecord(models.Model):
     def __str__(self):
         return f"{self.student.name} - {self.session.date}: {self.status}"
 
+
 # ========== BEHAVIOR MODELS ==========
 class BehaviorCategory(models.Model):
     name = models.CharField(max_length=100)
@@ -99,6 +125,7 @@ class BehaviorCategory(models.Model):
     def __str__(self):
         return f"{self.name} ({self.default_points})"
 
+
 class BehaviorEntry(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='behavior_entries')
     category = models.ForeignKey(BehaviorCategory, on_delete=models.SET_NULL, null=True)
@@ -106,9 +133,18 @@ class BehaviorEntry(models.Model):
     note = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    semester = models.ForeignKey(
+        Semester,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='behavior_entries',
+        help_text="Semester this entry belongs to. Used for auto-reset at new semester."
+    )
 
     def __str__(self):
         return f"{self.student.name}: {self.points} points at {self.timestamp}"
+
 
 # ========== ASSESSMENT MODELS ==========
 class AssessmentType(models.Model):
@@ -117,6 +153,7 @@ class AssessmentType(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Assessment(models.Model):
     name = models.CharField(max_length=200)  # Topic
@@ -130,6 +167,7 @@ class Assessment(models.Model):
     def __str__(self):
         return f"{self.name} - {self.class_obj.name}"
 
+
 class Score(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='scores')
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name='scores')
@@ -142,6 +180,7 @@ class Score(models.Model):
     def __str__(self):
         return f"{self.student.name} - {self.assessment.name}: {self.points_earned}/{self.assessment.max_points}"
 
+
 class StudentFeedback(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='feedbacks')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='feedbacks')
@@ -152,14 +191,59 @@ class StudentFeedback(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('student', 'class_obj', 'semester')  # satu feedback per siswa per kelas per semester
+        unique_together = ('student', 'class_obj', 'semester')
 
     def __str__(self):
         return f"Feedback for {self.student.name} - {self.class_obj.name}"
-    
+
+
 class ActivityLog(models.Model):
     teacher = models.ForeignKey(User, on_delete=models.CASCADE)
     action = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
-    
-    
+
+
+class BehaviorConversion(models.Model):
+    """
+    Log of behavior point conversions into academic bonus.
+    Each row represents one 'Convert Bonus' action by a teacher.
+    """
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='behavior_conversions'
+    )
+    class_obj = models.ForeignKey(
+        Class,
+        on_delete=models.CASCADE,
+        related_name='behavior_conversions'
+    )
+    semester = models.ForeignKey(
+        Semester,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='behavior_conversions'
+    )
+    points_used = models.IntegerField(
+        help_text="Available points deducted at conversion time."
+    )
+    bonus_gained = models.IntegerField(
+        help_text="Academic bonus added to the student's final score."
+    )
+    converted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        help_text="Teacher who performed the conversion."
+    )
+    converted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-converted_at']
+
+    def __str__(self):
+        return (
+            f"{self.student.name} - {self.class_obj.name}: "
+            f"-{self.points_used} pts → +{self.bonus_gained} bonus"
+        )

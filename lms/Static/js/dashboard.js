@@ -1,10 +1,8 @@
-// ========== AMBIL CSRF TOKEN DENGAN AMAN ==========
+// ========== CSRF TOKEN ==========
 function getCsrfToken() {
-    // Coba ambil dari global (dideklarasikan di sidebar.js)
     if (typeof csrfToken !== 'undefined' && csrfToken && csrfToken.length > 20) {
         return csrfToken;
     }
-    // Fallback: ambil dari cookie
     const name = 'csrftoken';
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -12,14 +10,13 @@ function getCsrfToken() {
         const token = parts.pop().split(';').shift();
         if (token && token.length > 20) return token;
     }
-    // Fallback terakhir: ambil dari elemen hidden (jika ada)
     const hiddenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
     if (hiddenInput) return hiddenInput.value;
     return '';
 }
 const CSRF_TOKEN = getCsrfToken();
 
-// ========== FUNGSI DASAR ==========
+// ========== BASIC UTILITIES ==========
 function updateClock() {
     const now = new Date();
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
@@ -42,7 +39,6 @@ function showNotification(message, type) {
     setTimeout(() => notif.remove(), 4000);
 }
 
-// Pesan dari sessionStorage
 const bulkAddMessage = sessionStorage.getItem('bulkAddMessage');
 if (bulkAddMessage) {
     try { const msg = JSON.parse(bulkAddMessage); showNotification(msg.text, msg.type); } catch (e) {}
@@ -72,7 +68,6 @@ function escapeHtml(str) {
 
 // ========== TEAM GENERATOR ==========
 let teamHistory = [];
-if (localStorage.getItem('teamGeneratorHistory')) localStorage.removeItem('teamGeneratorHistory');
 function loadTeamHistory() {
     const stored = localStorage.getItem('teamGeneratorHistoryFull');
     if (stored) { try { teamHistory = JSON.parse(stored); } catch(e) { teamHistory = []; } }
@@ -95,7 +90,7 @@ function renderTeamHistory() {
     teamHistory.forEach((item) => {
         const li = document.createElement('li');
         li.className = 'list-group-item history-clickable';
-        li.innerHTML = `<strong>${item.timestamp}</strong><br>Kelas: ${item.className}, Tim: ${item.teamCount}<br><small class="text-primary">👆 Click for details</small>`;
+        li.innerHTML = `<strong>${item.timestamp}</strong><br>Class: ${item.className}, Teams: ${item.teamCount}<br><small class="text-primary">Click for details</small>`;
         li.addEventListener('click', () => showTeamDetail(item));
         list.appendChild(li);
     });
@@ -136,7 +131,7 @@ document.getElementById('generateTeamsBtn')?.addEventListener('click', function(
         col.className = 'col-md-4 col-sm-6 mb-3';
         const teamLetter = String.fromCharCode(65 + idx);
         const teamMembers = team.map(n => `<li class="list-group-item">${escapeHtml(n)}</li>`).join('');
-        col.innerHTML = `<div class="card h-100 shadow-sm"><div class="card-header text-white py-1,2 px-1" style="background-color: #003f5c; font-size: 1rem; text-align: center;">Team ${teamLetter} (${team.length} members)</div><div class="card-body"><ul class="list-group list-group-flush">${teamMembers}</ul></div></div>`;
+        col.innerHTML = `<div class="card h-100 shadow-sm team-card"><div class="card-header text-white">Team ${teamLetter} (${team.length} members)</div><div class="card-body p-0"><ul class="list-group list-group-flush">${teamMembers}</ul></div></div>`;
         container.appendChild(col);
     });
     addTeamHistory(classId, teamCount, teams);
@@ -144,7 +139,6 @@ document.getElementById('generateTeamsBtn')?.addEventListener('click', function(
 
 // ========== PAIR GENERATOR ==========
 let pairHistory = [];
-if (localStorage.getItem('pairGeneratorHistory')) localStorage.removeItem('pairGeneratorHistory');
 function loadPairHistory() {
     const stored = localStorage.getItem('pairGeneratorHistoryFull');
     if (stored) { try { pairHistory = JSON.parse(stored); } catch(e) { pairHistory = []; } }
@@ -167,7 +161,7 @@ function renderPairHistory() {
     pairHistory.forEach((item) => {
         const li = document.createElement('li');
         li.className = 'list-group-item history-clickable';
-        li.innerHTML = `<strong>${item.timestamp}</strong><br>Kelas: ${item.className}, Pasangan: ${item.pairs.length}<br><small class="text-primary">👆 Click for details</small>`;
+        li.innerHTML = `<strong>${item.timestamp}</strong><br>Class: ${item.className}, Pairs: ${item.pairs.length}<br><small class="text-primary">Click for details</small>`;
         li.addEventListener('click', () => showPairDetail(item));
         list.appendChild(li);
     });
@@ -188,7 +182,7 @@ document.getElementById('showPairHistoryBtn')?.addEventListener('click', () => {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 });
 document.getElementById('clearPairHistoryBtn')?.addEventListener('click', () => {
-    pairHistory = []; savePairHistory(); renderPairHistory(); 
+    pairHistory = []; savePairHistory(); renderPairHistory();
     document.getElementById('pairsResult').style.display = 'none';
     document.getElementById('pairsTableBody').innerHTML = '';
     showNotification('Pair history cleared.', 'success');
@@ -220,7 +214,7 @@ document.getElementById('pairClassSelect')?.addEventListener('change', function(
     document.getElementById('pairsTableBody').innerHTML = '';
 });
 
-// Name Randomizer
+// ========== NAME RANDOMIZER ==========
 let nameHistoryMap = {};
 function loadNameHistory(classId) {
     const stored = localStorage.getItem(`nameHistory_${classId}`);
@@ -269,9 +263,44 @@ document.getElementById('resetNameHistoryBtn')?.addEventListener('click', functi
     resetNameHistory(classId); showNotification('Name history reset.', 'success');
     document.getElementById('wheelResult').innerHTML = '<span class="fw-bold">🎲 Ready</span>';
 });
-document.getElementById('randomizerModal')?.addEventListener('show.bs.modal', function() { loadTeamHistory(); loadPairHistory(); });
+// ---------- Randomizer modal: auto-select current class ----------
+document.getElementById('randomizerModal')?.addEventListener('show.bs.modal', function() {
+    loadTeamHistory();
+    loadPairHistory();
 
-// ========== SEAT RANDOMIZER (Drag & Drop) ==========
+    // Determine current class — prefer dashboard dropdown (always in sync),
+    // fall back to URL, then localStorage.
+    let currentClassId = '';
+
+    const dashSelect = document.getElementById('class_select');
+    if (dashSelect && dashSelect.value) {
+        currentClassId = dashSelect.value;
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        currentClassId = urlParams.get('class_id') || '';
+    }
+
+    // If still empty, try localStorage
+    if (!currentClassId) {
+        currentClassId = localStorage.getItem('selectedClassId') || '';
+    }
+
+    if (currentClassId) {
+        const selects = ['teamClassSelect', 'nameClassSelect', 'pairClassSelect', 'seatClassSelect'];
+        selects.forEach(id => {
+            const selectEl = document.getElementById(id);
+            if (!selectEl) return;
+
+            // Always override to match current dashboard class
+            const option = Array.from(selectEl.options).find(opt => opt.value === currentClassId);
+            if (option) {
+                selectEl.value = currentClassId;
+            }
+        });
+    }
+});
+
+// ========== SEAT RANDOMIZER ==========
 let currentSeatLayout = 'rows';
 let currentSeatNames = [];
 
@@ -397,7 +426,7 @@ function handleDrop(e) {
 }
 function handleDragEnd(e) { this.style.opacity = '1'; dragSrcIndex = null; }
 
-document.getElementById('generateSeatBtn').addEventListener('click', function() {
+document.getElementById('generateSeatBtn')?.addEventListener('click', function() {
     const classId = document.getElementById('seatClassSelect').value;
     const columns = parseInt(document.getElementById('seatColumns').value, 10) || 4;
     if (!classId) { showNotification('Select a class first.', 'warning'); return; }
@@ -409,183 +438,360 @@ document.getElementById('generateSeatBtn').addEventListener('click', function() 
         if (parts.length === 2) return parts[1];
         return parts[1];
     });
-    for (let i = names.length - 1; i > 0; i--) { 
-        const j = Math.floor(Math.random() * (i + 1)); 
-        [names[i], names[j]] = [names[j], names[i]]; 
+    for (let i = names.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [names[i], names[j]] = [names[j], names[i]];
     }
     currentSeatNames = [...names];
     renderSeatPlan(currentSeatNames, currentSeatLayout, columns);
 });
 
-document.getElementById('resetSeatBtn').addEventListener('click', function() {
+document.getElementById('resetSeatBtn')?.addEventListener('click', function() {
     if (currentSeatNames.length === 0) return;
     const columns = parseInt(document.getElementById('seatColumns').value, 10) || 4;
     renderSeatPlan(currentSeatNames, currentSeatLayout, columns);
 });
 
-// ========== FUNGSI UNTUK MELEKATKAN EVENT LISTENER AJAX ==========
+// ========== RESET POINTS MODAL ==========
+let resetPointsContext = null;
+
+function showResetPointsModal() {
+    if (!resetPointsContext) return;
+    const title = document.getElementById('resetPointsModalTitle');
+    const message = document.getElementById('resetPointsModalMessage');
+    const checkbox = document.getElementById('fullResetCheckbox');
+
+    checkbox.checked = false;
+
+    if (resetPointsContext.type === 'student') {
+        title.innerHTML = '<i class="bi bi-arrow-counterclockwise me-2"></i>Reset Behavior Points';
+        message.innerHTML = `Reset behavior points for <strong>${resetPointsContext.studentName}</strong>?`;
+    } else {
+        title.innerHTML = '<i class="bi bi-arrow-counterclockwise me-2"></i>Reset Class Points';
+        message.innerHTML = `Reset behavior points for <strong>ALL students</strong> in <strong>${resetPointsContext.className}</strong>?`;
+    }
+
+    new bootstrap.Modal(document.getElementById('resetPointsModal')).show();
+}
+
+document.getElementById('confirmResetPointsBtn')?.addEventListener('click', function() {
+    if (!resetPointsContext) return;
+    const fullReset = document.getElementById('fullResetCheckbox').checked;
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Resetting...';
+
+    const formData = new URLSearchParams();
+    formData.append('full_reset', fullReset ? 'true' : 'false');
+
+    let url;
+    if (resetPointsContext.type === 'student') {
+        url = `/reset-student-points/${resetPointsContext.studentId}/${resetPointsContext.classId}/`;
+    } else {
+        url = `/reset-class-points/${resetPointsContext.classId}/`;
+    }
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            showNotification(data.message, 'success');
+            if (typeof addActivityLog === 'function') addActivityLog(data.message);
+            bootstrap.Modal.getInstance(document.getElementById('resetPointsModal')).hide();
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showNotification(data.message || 'Failed', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showNotification('Network error', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+});
+
+// ========== AJAX HANDLERS ==========
 function attachAjaxEvents() {
+    // Behavior buttons
     document.querySelectorAll('.ajax-behavior').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            const studentId = this.dataset.studentId, classId = this.dataset.classId, points = this.dataset.points;
+            const studentId = this.dataset.studentId;
+            const classId = this.dataset.classId;
+            const points = this.dataset.points;
             const btnElem = this;
-            btnElem.disabled = true; btnElem.style.opacity = '0.6'; btnElem.blur();
-            const formData = new URLSearchParams(); formData.append('points', points);
+
+            btnElem.disabled = true;
+            btnElem.style.opacity = '0.6';
+            btnElem.blur();
+
+            const formData = new URLSearchParams();
+            formData.append('points', points);
+
             fetch(`/add-behavior/${studentId}/${classId}/`, {
                 method: 'POST',
-                headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'X-CSRFToken': CSRF_TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
                 body: formData
             })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    const row = document.querySelector(`tr[data-student-id="${studentId}"][data-class-id="${classId}"]`);
-                    if (row) {
-                        const summaryCell = row.querySelector('.behavior-summary-col');
-                        if (summaryCell && data.new_summary) summaryCell.innerHTML = data.new_summary;
-                        const finalCell = row.querySelector('.final-score-cell');
-                        if (finalCell && data.new_final_score !== undefined) {
-                            if (data.new_final_score !== null) {
-                                finalCell.innerHTML = `<span class="${data.new_final_score < 80 ? 'text-danger' : 'text-dark'}">${data.new_final_score}</span>`;
-                            } else { finalCell.innerHTML = '<span class="text-muted">-</span>'; }
-                        }
-                    }
+                    updateStudentUI(studentId, classId, data);
                     showNotification(data.message, 'success');
-                    if (typeof addActivityLog === 'function') addActivityLog(`Behavior point ${points > 0 ? '+' + points : points} added`);
-                    // Refresh sidebar info (termasuk badge pending)
+                    if (typeof addActivityLog === 'function') {
+                        addActivityLog(`Behavior point ${points > 0 ? '+' + points : points} added`);
+                    }
                     if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
-                } else { showNotification(data.message || 'Failed', 'danger'); }
+                } else {
+                    showNotification(data.message || 'Failed', 'danger');
+                }
             })
             .catch(err => { console.error(err); showNotification('Network error', 'danger'); })
-            .finally(() => { btnElem.disabled = false; btnElem.style.opacity = '1'; btnElem.blur(); });
+            .finally(() => {
+                btnElem.disabled = false;
+                btnElem.style.opacity = '1';
+                btnElem.blur();
+            });
         });
     });
 
+    // Reset student points — open modal
     document.querySelectorAll('.ajax-reset-student-points').forEach(icon => {
         icon.addEventListener('click', function(e) {
             e.preventDefault();
-            const studentId = this.dataset.studentId, classId = this.dataset.classId, studentName = this.dataset.studentName;
-            if (!confirm(`Reset behavior points for ${studentName}?`)) return;
-            const elem = this; elem.style.opacity = '0.6'; elem.blur();
-            fetch(`/reset-student-points/${studentId}/${classId}/`, {
-                method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
+            resetPointsContext = {
+                type: 'student',
+                studentId: this.dataset.studentId,
+                classId: this.dataset.classId,
+                studentName: this.dataset.studentName,
+            };
+            showResetPointsModal();
+        });
+    });
+
+    // Reset class points — open modal
+    document.querySelectorAll('.ajax-reset-class-points').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            resetPointsContext = {
+                type: 'class',
+                classId: this.dataset.classId,
+                className: this.dataset.className,
+            };
+            showResetPointsModal();
+        });
+    });
+
+    // Convert bonus
+    document.querySelectorAll('.ajax-convert-bonus').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (this.disabled) return;
+            const studentId = this.dataset.studentId;
+            const classId = this.dataset.classId;
+            const studentName = this.dataset.studentName;
+            const btnElem = this;
+
+            if (!confirm(`Convert available points into academic bonus for ${studentName}?`)) return;
+
+            btnElem.disabled = true;
+            btnElem.style.opacity = '0.6';
+            btnElem.blur();
+
+            fetch(`/convert-bonus/${studentId}/${classId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    const row = document.querySelector(`tr[data-student-id="${studentId}"][data-class-id="${classId}"]`);
-                    if (row && data.new_summary) row.querySelector('.behavior-summary-col').innerHTML = data.new_summary;
-                    if (row && data.new_final_score !== undefined) {
-                        const finalCell = row.querySelector('.final-score-cell');
-                        if (data.new_final_score !== null) {
-                            finalCell.innerHTML = `<span class="${data.new_final_score < 80 ? 'text-danger' : 'text-dark'}">${data.new_final_score}</span>`;
-                        } else { finalCell.innerHTML = '<span class="text-muted">-</span>'; }
-                    }
                     showNotification(data.message, 'success');
-                    if (typeof addActivityLog === 'function') addActivityLog(`Behavior points reset for ${studentName}`);
-                    if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
-                } else { showNotification(data.message || 'Failed', 'danger'); }
+                    if (typeof addActivityLog === 'function') addActivityLog(`Bonus converted for ${studentName}`);
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    showNotification(data.message || 'Conversion failed.', 'danger');
+                    btnElem.disabled = false;
+                    btnElem.style.opacity = '1';
+                }
             })
-            .catch(err => { console.error(err); showNotification('Network error', 'danger'); })
-            .finally(() => { elem.style.opacity = '1'; elem.blur(); });
+            .catch(err => {
+                console.error(err);
+                showNotification('Network error', 'danger');
+                btnElem.disabled = false;
+                btnElem.style.opacity = '1';
+            });
         });
     });
 
+    // Delete student
     document.querySelectorAll('.ajax-delete-student').forEach(icon => {
         icon.addEventListener('click', function(e) {
             e.preventDefault();
-            const studentId = this.dataset.studentId, classId = this.dataset.classId, studentName = this.dataset.studentName;
+            const studentId = this.dataset.studentId;
+            const classId = this.dataset.classId;
+            const studentName = this.dataset.studentName;
             if (!confirm(`Remove ${studentName} from this class?`)) return;
             const elem = this; elem.style.opacity = '0.6'; elem.blur();
             fetch(`/delete-student/${studentId}/${classId}/`, {
-                method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
                     const row = document.querySelector(`tr[data-student-id="${studentId}"][data-class-id="${classId}"]`);
                     if (row) row.remove();
-                    showNotification(data.message, 'success'); 
+                    const card = document.querySelector(`.student-card-mobile[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+                    if (card) card.remove();
+                    showNotification(data.message, 'success');
                     if (typeof addActivityLog === 'function') addActivityLog(`Student removed: ${studentName}`);
                     if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
-                } else { showNotification(data.message || 'Failed', 'danger'); }
+                } else {
+                    showNotification(data.message || 'Failed', 'danger');
+                }
             })
             .catch(err => { console.error(err); showNotification('Network error', 'danger'); })
             .finally(() => { elem.style.opacity = '1'; elem.blur(); });
         });
     });
 
-    document.querySelectorAll('.ajax-reset-class-points').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const classId = this.dataset.classId, className = this.dataset.className;
-            if (!confirm(`Reset behavior points for ALL students in ${className}? This cannot be undone.`)) return;
-            const btnElem = this; const originalText = btnElem.innerHTML;
-            btnElem.disabled = true; btnElem.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Resetting...'; btnElem.style.opacity = '1';
-            fetch(`/reset-class-points/${classId}/`, {
-                method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'ok') { showNotification(data.message, 'success'); if (typeof addActivityLog === 'function') addActivityLog(`All behavior points reset for class ${className}`); setTimeout(() => window.location.reload(), 1500); }
-                else { showNotification(data.message || 'Failed', 'danger'); btnElem.disabled = false; btnElem.innerHTML = originalText; btnElem.style.opacity = '1'; }
-            })
-            .catch(err => { console.error(err); showNotification('Network error', 'danger'); btnElem.disabled = false; btnElem.innerHTML = originalText; btnElem.style.opacity = '1'; });
-        });
-    });
-
+    // Delete class
     document.querySelectorAll('.ajax-delete-class').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            const classId = this.dataset.classId, className = this.dataset.className;
+            const classId = this.dataset.classId;
+            const className = this.dataset.className;
             if (!confirm(`Delete entire class "${className}"? All data will be lost.`)) return;
-            const btnElem = this; btnElem.disabled = true; btnElem.style.opacity = '0.6';
+            const btnElem = this;
+            btnElem.disabled = true;
+            btnElem.style.opacity = '0.6';
             fetch(`/delete-class/${classId}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' } })
             .then(res => res.json())
             .then(data => {
-                if (data.status === 'ok') { showNotification(data.message, 'success'); if (typeof addActivityLog === 'function') addActivityLog(`Class deleted: ${className}`); setTimeout(() => window.location.reload(), 1000); }
-                else { showNotification(data.message || 'Failed', 'danger'); btnElem.disabled = false; btnElem.style.opacity = '1'; }
+                if (data.status === 'ok') {
+                    showNotification(data.message, 'success');
+                    if (typeof addActivityLog === 'function') addActivityLog(`Class deleted: ${className}`);
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showNotification(data.message || 'Failed', 'danger');
+                    btnElem.disabled = false;
+                    btnElem.style.opacity = '1';
+                }
             })
-            .catch(err => { console.error(err); showNotification('Network error', 'danger'); btnElem.disabled = false; btnElem.style.opacity = '1'; });
+            .catch(err => {
+                console.error(err);
+                showNotification('Network error', 'danger');
+                btnElem.disabled = false;
+                btnElem.style.opacity = '1';
+            });
         });
     });
 }
 
-// Panggil attachAjaxEvents setelah konten dimuat (juga dipanggil setelah load dashboard via AJAX)
+function updateStudentUI(studentId, classId, data) {
+    const row = document.querySelector(`tr[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+    if (row) {
+        const summaryCell = row.querySelector('.behavior-summary-col');
+        if (summaryCell) summaryCell.innerHTML = buildSummaryHTML(data);
+
+        const finalCell = row.querySelector('.final-score-cell');
+        if (finalCell) {
+            if (data.new_final_score !== undefined && data.new_final_score !== null) {
+                finalCell.innerHTML = `<span class="${data.new_final_score < 80 ? 'text-danger' : 'text-dark'}">${data.new_final_score}</span>`;
+            } else {
+                finalCell.innerHTML = '<span class="text-muted">-</span>';
+            }
+        }
+
+        const convertBtn = row.querySelector('.ajax-convert-bonus');
+        if (convertBtn) {
+            convertBtn.disabled = !data.can_convert;
+            convertBtn.title = data.can_convert ? 'Convert points into bonus' : (data.conversion_error || '');
+        }
+    }
+
+    const card = document.querySelector(`.student-card-mobile[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+    if (card) {
+        const metaRow = card.querySelector('.mobile-meta-row');
+        if (metaRow) {
+            const attText = metaRow.querySelector('.meta-att')?.outerHTML || '';
+            const finalText = metaRow.querySelector('.meta-final')?.outerHTML || '';
+
+            let html = `
+                <span class="meta-summary">
+                    <span class="text-success fw-semibold">+${data.total_positive}</span><span class="text-muted">/</span><span class="text-danger fw-semibold">-${data.total_negative}</span>
+                </span>
+                <span class="meta-avail"><strong>Avail: ${data.available_points}</strong></span>
+            `;
+            if (data.daily_test_status === 'ready') {
+                html += `<span class="badge bg-success">✓</span>`;
+            } else if (data.daily_test_status === 'not_ready') {
+                html += `<span class="badge bg-secondary">-${data.points_needed_for_test}</span>`;
+            }
+            if (data.bonus_earned > 0) {
+                html += `<span class="badge bg-warning text-dark">+${data.bonus_earned}b</span>`;
+            }
+            html += `<span class="meta-sep">·</span>`;
+            html += attText;
+            html += `<span class="meta-sep">·</span>`;
+            if (data.new_final_score !== undefined && data.new_final_score !== null) {
+                html += `<span class="meta-final"><span class="${data.new_final_score < 80 ? 'text-danger' : 'text-success'} fw-semibold">Final: ${data.new_final_score}</span></span>`;
+            } else {
+                html += `<span class="meta-final"><span class="text-muted">Final: -</span></span>`;
+            }
+            metaRow.innerHTML = html;
+        }
+
+        const mobileConvertBtn = card.querySelector('.ajax-convert-bonus');
+        if (mobileConvertBtn) {
+            mobileConvertBtn.disabled = !data.can_convert;
+            if (data.can_convert) {
+                mobileConvertBtn.title = 'Convert points into bonus';
+            } else {
+                mobileConvertBtn.title = data.conversion_error || '';
+            }
+        }
+    }
+}
+
+function buildSummaryHTML(data) {
+    let html = `
+        <span class="summary-points">
+            <span class="text-success fw-semibold">+${data.total_positive}</span><span class="text-muted">/</span><span class="text-danger fw-semibold">-${data.total_negative}</span>
+        </span>
+        <span class="summary-divider">·</span>
+        <span class="summary-avail"><strong>Avail: ${data.available_points}</strong></span>
+    `;
+    if (data.daily_test_status === 'ready') {
+        html += `<span class="badge bg-success" title="Ready for Daily Test">✓</span>`;
+    } else if (data.daily_test_status === 'not_ready') {
+        html += `<span class="badge bg-secondary" title="Need ${data.points_needed_for_test} more">-${data.points_needed_for_test}</span>`;
+    }
+    if (data.bonus_earned > 0) {
+        html += `<span class="badge bg-warning text-dark" title="Bonus earned">+${data.bonus_earned}b</span>`;
+    }
+    return `<div class="summary-row">${html}</div>`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     attachAjaxEvents();
-    
-    // Listener untuk Generate Parent Code (delegasi)
-    document.addEventListener('click', async function(e) {
-        const btn = e.target.closest('.generate-code-btn');
-        if (!btn) return;
-        e.preventDefault();
-        const studentId = btn.dataset.studentId;
-        const originalHTML = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        try {
-            const response = await fetch(`/generate-parent-code/${studentId}/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const data = await response.json();
-            if (data.status === 'ok') {
-                await navigator.clipboard.writeText(data.code);
-                showNotification(`✅ Parent Code: ${data.code} (Copied)`, 'success');
-                if (typeof addActivityLog === 'function') addActivityLog('Parent code generated');
-            } else {
-                showNotification('❌ ' + (data.message || 'Failed to load the code.'), 'danger');
-            }
-        } catch (err) {
-            console.error(err);
-            showNotification('❌ Failed to load the code.', 'danger');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalHTML;
-        }
-    });
+    startHighlightRotation();
 });
 
 // ========== LIVE SEARCH & CLASS FILTER ==========
@@ -608,7 +814,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const classId = options.classId !== undefined ? options.classId : getCurrentClassIdFromUrl();
         const searchQuery = options.searchQuery !== undefined ? options.searchQuery : (searchInput ? searchInput.value.trim() : '');
 
-        // Gunakan DASHBOARD_URL yang didefinisikan di template
         const url = new URL(window.location.origin + DASHBOARD_URL);
         if (searchQuery) url.searchParams.set('search', searchQuery);
         if (classId) url.searchParams.set('class_id', classId);
@@ -622,23 +827,20 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!response.ok) throw new Error('Network error');
             const html = await response.text();
             dashboardContent.innerHTML = html;
+            if (typeof startHighlightRotation === 'function') {
+                startHighlightRotation();
+            }
 
             classSelect = document.getElementById('class_select');
-            
+
             if (classSelect) {
-                if (classId && classSelect.value !== classId) {
-                    classSelect.value = classId;
-                } else if (!classId && classSelect.value !== '') {
-                    classSelect.value = '';
-                }
+                if (classId && classSelect.value !== classId) classSelect.value = classId;
+                else if (!classId && classSelect.value !== '') classSelect.value = '';
                 attachClassSelectListener(classSelect);
             }
 
-            if (classId) {
-                localStorage.setItem('selectedClassId', classId);
-            } else {
-                localStorage.removeItem('selectedClassId');
-            }
+            if (classId) localStorage.setItem('selectedClassId', classId);
+            else localStorage.removeItem('selectedClassId');
 
             const newUrl = new URL(window.location);
             if (searchQuery) newUrl.searchParams.set('search', searchQuery);
@@ -647,24 +849,20 @@ document.addEventListener('DOMContentLoaded', function() {
             else newUrl.searchParams.delete('class_id');
             history.pushState(null, '', newUrl);
 
-            if (typeof attachAjaxEvents === 'function') {
-                attachAjaxEvents();
-            }
+            if (typeof attachAjaxEvents === 'function') attachAjaxEvents();
+            if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
 
-            // Refresh sidebar info setelah konten dashboard diperbarui
-            if (typeof updateSidebarInfo === 'function') {
-                updateSidebarInfo();
-            }
-
-            if (searchInput) {
+            // Only re-focus the search box if the user is actively typing in it.
+            // Otherwise (e.g. after class change) don't focus — prevents mobile keyboard popup.
+            if (options.focusSearch && searchInput) {
                 searchInput.focus();
                 searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+            } else if (searchInput) {
+                searchInput.blur();
             }
         } catch (err) {
             console.error('Dashboard load error:', err);
-            if (typeof showNotification === 'function') {
-                showNotification('Gagal memuat data.', 'danger');
-            }
+            if (typeof showNotification === 'function') showNotification('Failed to load data.', 'danger');
         } finally {
             isLoading = false;
             if (classSelect) classSelect.disabled = false;
@@ -674,7 +872,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleClassChange(e) {
         const newClassId = e.target.value;
         const currentSearch = searchInput ? searchInput.value.trim() : '';
-        loadDashboardContent({ classId: newClassId, searchQuery: currentSearch });
+        // Blur search input to avoid mobile keyboard popup
+        if (searchInput) searchInput.blur();
+        // Defer slightly so the browser closes the native select first
+        setTimeout(() => {
+            loadDashboardContent({
+                classId: newClassId,
+                searchQuery: currentSearch,
+                focusSearch: false
+            });
+        }, 50);
     }
 
     function attachClassSelectListener(selectEl) {
@@ -688,21 +895,23 @@ document.addEventListener('DOMContentLoaded', function() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 const currentClassId = getCurrentClassIdFromUrl();
-                loadDashboardContent({ classId: currentClassId, searchQuery: searchInput.value.trim() });
+                loadDashboardContent({
+                    classId: currentClassId,
+                    searchQuery: searchInput.value.trim(),
+                    focusSearch: true
+                });
             }, 300);
         });
     }
 
-    if (classSelect) {
-        attachClassSelectListener(classSelect);
-    }
+    if (classSelect) attachClassSelectListener(classSelect);
 
     window.addEventListener('popstate', function() {
         const params = new URLSearchParams(window.location.search);
         const classId = params.get('class_id') || '';
         const searchQuery = params.get('search') || '';
         if (searchInput) searchInput.value = searchQuery;
-        loadDashboardContent({ classId, searchQuery });
+        loadDashboardContent({ classId, searchQuery, focusSearch: false });
     });
 
     const homeLink = document.getElementById('dashboardHomeLink');
@@ -730,28 +939,119 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (urlClassId) {
         localStorage.setItem('selectedClassId', urlClassId);
-        if (classSelect && classSelect.value !== urlClassId) {
-            classSelect.value = urlClassId;
-        }
+        if (classSelect && classSelect.value !== urlClassId) classSelect.value = urlClassId;
     }
 })();
 
-// ========== HIGHLIGHT ROTATION ==========
-const highlightSpan = document.getElementById('highlightText');
-if (highlightSpan && typeof highlights !== 'undefined' && highlights.length > 0) {
-    let currentIndex = 0;
-    highlightSpan.textContent = highlights[0];
-    setInterval(() => {
-        highlightSpan.style.opacity = '0';
-        setTimeout(() => {
-            currentIndex = (currentIndex + 1) % highlights.length;
-            highlightSpan.textContent = highlights[currentIndex];
-            highlightSpan.style.opacity = '1';
-        }, 300);
-    }, 4000);
+// ========== HIGHLIGHT ROTATION (dynamic, class-aware) ==========
+let highlightItems = [];
+let highlightIndex = 0;
+let highlightInterval = null;
+
+function buildHighlightItems() {
+    const dataEl = document.getElementById('highlight-data');
+    if (!dataEl) return [];
+
+    const items = [];
+
+    if (dataEl.dataset.hasHp === '1') {
+        items.push({
+            category: 'positive',
+            icon: 'bi-star-fill',
+            label: 'Most Positive',
+            value: `${dataEl.dataset.hpName} (+${dataEl.dataset.hpPoints})`
+        });
+    }
+
+    if (dataEl.dataset.hasHn === '1') {
+        items.push({
+            category: 'negative',
+            icon: 'bi-exclamation-triangle-fill',
+            label: 'Most Negative',
+            value: `${dataEl.dataset.hnName} (-${dataEl.dataset.hnPoints})`
+        });
+    }
+
+    if (dataEl.dataset.hasHf === '1') {
+        items.push({
+            category: 'final',
+            icon: 'bi-trophy-fill',
+            label: 'Highest Final Score',
+            value: `${dataEl.dataset.hfName} (${dataEl.dataset.hfScore})`
+        });
+    }
+
+    return items;
 }
 
-// ========== MODAL RESET CLASS ==========
+function renderHighlightItem(item) {
+    const box = document.getElementById('highlightBox');
+    const iconEl = document.getElementById('highlightIcon');
+    const labelEl = document.getElementById('highlightLabel');
+    const valueEl = document.getElementById('highlightText');
+    const content = box ? box.querySelector('.highlight-content') : null;
+
+    if (!box || !iconEl || !labelEl || !valueEl || !content) return;
+
+    // Fade out
+    content.classList.add('fade-out');
+
+    setTimeout(() => {
+        // Update content
+        box.dataset.category = item.category;
+        iconEl.className = `bi ${item.icon} highlight-icon`;
+        labelEl.textContent = item.label;
+        valueEl.textContent = item.value;
+
+        // Fade in
+        content.classList.remove('fade-out');
+        content.classList.add('fade-in');
+    }, 280);
+}
+
+function startHighlightRotation() {
+    // Clear any existing interval
+    if (highlightInterval) {
+        clearInterval(highlightInterval);
+        highlightInterval = null;
+    }
+
+    highlightItems = buildHighlightItems();
+
+    const box = document.getElementById('highlightBox');
+    const iconEl = document.getElementById('highlightIcon');
+    const labelEl = document.getElementById('highlightLabel');
+    const valueEl = document.getElementById('highlightText');
+    const content = box ? box.querySelector('.highlight-content') : null;
+
+    if (!box || !iconEl || !labelEl || !valueEl || !content) return;
+
+    if (highlightItems.length === 0) {
+        box.dataset.category = 'neutral';
+        iconEl.className = 'bi bi-stars highlight-icon';
+        labelEl.textContent = 'Welcome';
+        valueEl.textContent = 'No activity yet';
+        return;
+    }
+
+    // Show first item immediately
+    highlightIndex = 0;
+    const first = highlightItems[0];
+    box.dataset.category = first.category;
+    iconEl.className = `bi ${first.icon} highlight-icon`;
+    labelEl.textContent = first.label;
+    valueEl.textContent = first.value;
+
+    // Only rotate if more than 1 item
+    if (highlightItems.length > 1) {
+        highlightInterval = setInterval(() => {
+            highlightIndex = (highlightIndex + 1) % highlightItems.length;
+            renderHighlightItem(highlightItems[highlightIndex]);
+        }, 4500);
+    }
+}
+
+// ========== RESET CLASS MODAL ==========
 let currentResetClassId = null, currentResetBtn = null, currentResetBtnOriginalText = '';
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.open-reset-class-modal');
@@ -775,7 +1075,7 @@ document.getElementById('confirmResetClassBtn')?.addEventListener('click', funct
     }
     const formData = new URLSearchParams();
     formData.append('delete_students', deleteStudents);
-    
+
     fetch(`/reset-class-data/${currentResetClassId}/`, {
         method: 'POST',
         headers: {
@@ -807,23 +1107,4 @@ document.getElementById('confirmResetClassBtn')?.addEventListener('click', funct
         console.error(err);
         showNotification('Network error', 'danger');
     });
-});
-
-// ========== ADD CLASS VIA AJAX ==========
-document.getElementById('addClassForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const form = this; const submitBtn = form.querySelector('button[type="submit"]'); const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
-    const formData = new FormData(form); formData.append('is_ajax', 'true');
-    fetch(DASHBOARD_URL.replace('/dashboard', '/add-class/'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }, body: formData })
-    .then(res => res.json())
-    .then(data => {
-        if (data.status === 'ok') {
-            showNotification(data.message, 'success'); const className = document.getElementById('className').value; if (typeof addActivityLog === 'function') addActivityLog(`Class created: ${className}`);
-            bootstrap.Modal.getInstance(document.getElementById('addClassModal')).hide();
-            form.reset(); setTimeout(() => window.location.reload(), 1000);
-        } else { showNotification(data.message || 'Failed', 'danger'); }
-    })
-    .catch(err => { console.error(err); showNotification('Network error', 'danger'); })
-    .finally(() => { submitBtn.disabled = false; submitBtn.innerHTML = originalText; });
 });

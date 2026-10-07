@@ -1,0 +1,47 @@
+{% load static %}
+<nav class="navbar navbar-expand-lg andhivie-navbar">
+    <div class="container-fluid">
+        <button class="hamburger-btn" type="button"
+                data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
+                aria-label="Open sidebar">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+
+        <a class="navbar-brand-text" href="{% url 'dashboard' %}">
+            Classroom LMS <span class="brand-sep">|</span> <span class="brand-name">Andhivie</span>
+        </a>
+
+        <button class="navbar-toggler-custom ms-auto" type="button"
+                data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-label="Toggle navigation">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+                {% if use_modals %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addClassModal">Add Class</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#randomizerModal">Randomizer</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a>
+                    </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link {% if active == 'charts' %}active{% endif %}" href="{% url 'charts' %}">Charts</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'custom_logout' %}">Logout</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

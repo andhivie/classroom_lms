@@ -1,20 +1,10 @@
 /* ========== GLOBAL STYLES – Classroom LMS ========== */
 
+@import url('andhivie.css');
+
 body {
     background: #f4f6f9;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-}
-
-/* ========== NAVBAR ========== */
-.navbar.bg-dark {
-    background-color: #003f5c !important;
-}
-.navbar .navbar-brand,
-.navbar .nav-link {
-    color: #ffffff !important;
-}
-.navbar .nav-link:hover {
-    color: #cccccc !important;
 }
 
 /* === Tombol Hamburger Minimalis === */

@@ -1,206 +1,357 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Student Averages - {{ class_obj.name }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Averages — {{ class_obj.name }}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
     <style>
-        /* Hanya CSS spesifik halaman ini */
-        .card-body {
-            padding: 0.75rem 1.5rem 1.5rem;
+        body { background: #FDF8F4; }
+        .averages-page {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
 
-        .table td, .table th {
-            padding: 0.7rem 0.5rem;
-            border-bottom: 1px solid #e9ecef;
-            background-color: white;
-            vertical-align: middle;
+        /* ---------- Page header ---------- */
+        .averages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
         }
-
-        .table th:first-child,
-        .table td:first-child {
-            text-align: center;
-            width: 50px;
+        .averages-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .averages-title i {
+            color: #9B1B30;
+            font-size: 1.15rem;
+        }
+        .averages-subtitle {
+            font-size: 0.85rem;
+            color: #6B7280;
+            margin: 0.15rem 0 0 0;
+        }
+        .btn-back {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
             font-weight: 600;
-            color: #2c3e50;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.15s ease;
+            white-space: nowrap;
         }
-        .table th:nth-child(2) {
-            text-align: center;
-        }
-        .table td:nth-child(2) {
-            text-align: left;
-            font-weight: 500;
-            color: #2c3e50;
-        }
-        .table th:nth-child(3),
-        .table td:nth-child(3) {
-            text-align: center;
-        }
-        .table th:nth-child(4),
-        .table td:nth-child(4) {
-            text-align: center;
+        .btn-back:hover {
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
         }
 
-        .btn-copy-icon {
-            background: none;
+        /* ---------- Card ---------- */
+        .averages-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+
+        .averages-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        .averages-table thead th {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.72rem;
+            padding: 0.85rem 0.6rem;
             border: none;
-            color: white;
-            cursor: pointer;
-            font-size: 1rem;
-            padding: 0;
-            margin-left: 5px;
-            transition: opacity 0.2s;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
         }
-        .btn-copy-icon:hover {
-            opacity: 0.7;
+        .averages-table thead th.col-no      { width: 8%;  }
+        .averages-table thead th.col-name    { width: 44%; text-align: left; padding-left: 1.15rem; }
+        .averages-table thead th.col-avg     { width: 28%; }
+        .averages-table thead th.col-count   { width: 20%; }
+
+        .averages-table tbody td {
+            padding: 0.75rem 0.6rem;
+            border-bottom: 1px solid #F5EDE5;
+            background: #ffffff;
+            vertical-align: middle;
+            font-size: 0.9rem;
+            color: #1F2937;
+            text-align: center;
+        }
+        .averages-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .averages-table tbody tr:hover td {
+            background: #FFFCFA;
+        }
+        .averages-table td.col-no {
+            color: #9CA3AF;
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+        .averages-table td.col-name {
+            text-align: left;
+            padding-left: 1.15rem;
+            font-weight: 600;
+            color: #1F2937;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 0;
         }
 
+        /* Score value */
+        .score-value {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #059669;
+            letter-spacing: -0.2px;
+        }
+        .score-value.low {
+            color: #DC2626;
+        }
+        .score-empty {
+            color: #D1D5DB;
+            font-weight: 500;
+        }
+
+        /* Assessments count badge */
+        .count-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25em 0.65em;
+            background: #FAF6F1;
+            color: #6B7280;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.4rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .count-badge.full {
+            background: #D1FAE5;
+            color: #047857;
+            border-color: #A7F3D0;
+        }
+
+        /* Header copy button */
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+            border-radius: 0.4rem;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-left: 0.5rem;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        /* Toast for copy */
         .toast-copy {
             position: fixed;
             top: 80px;
             right: 20px;
-            background-color: #198754;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
             color: white;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 500;
+            padding: 0.65rem 1rem;
+            border-radius: 0.6rem;
+            font-size: 0.85rem;
+            font-weight: 600;
             z-index: 9999;
             opacity: 0;
-            transition: opacity 0.3s ease;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
             pointer-events: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
         }
         .toast-copy.show {
             opacity: 1;
+            transform: translateY(0);
         }
 
-        /* Tombol Back to Assessments – putih dengan hover navy */
-        .btn-back {
-            background-color: #ffffff;
-            border: 1px solid #003f5c;
-            color: #003f5c;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            padding: 0.4rem 1rem;
-            transition: all 0.2s ease;
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 3.5rem 1rem;
+            color: #9CA3AF;
         }
-        .btn-back:hover {
-            background-color: #003f5c;
-            color: white;
+        .empty-state i {
+            font-size: 3rem;
+            color: #E8E1DA;
+            display: block;
+            margin-bottom: 1rem;
+        }
+        .empty-state h5 {
+            color: #4B5563;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 767.98px) {
+            .averages-title { font-size: 1.05rem; }
+            .averages-header { flex-direction: column; align-items: flex-start; }
+            .averages-table thead th { padding: 0.7rem 0.4rem; font-size: 0.68rem; }
+            .averages-table tbody td { padding: 0.6rem 0.4rem; font-size: 0.85rem; }
+            .averages-table thead th.col-name { padding-left: 0.6rem; }
+            .averages-table td.col-name { padding-left: 0.6rem; }
+            .copy-btn { display: none; }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    {% include 'lms/_sidebar.html' %}
+    {% include 'lms/_navbar.html' %}
 
-    <div id="copyToast" class="toast-copy">✔ Values copied successfully</div>
+    <div class="container-fluid mt-3 mb-4">
+        <div class="averages-page">
 
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Student Averages — {{ class_obj.name }}</h5>
-                <a href="{% url 'class_assessments' class_obj.id %}" class="btn btn-back btn-sm">
-                    <i class="bi bi-arrow-left me-1"></i> Back to Assessments
+            <!-- HEADER -->
+            <div class="averages-header">
+                <div>
+                    <h1 class="averages-title">
+                        <i class="bi bi-bar-chart-line-fill"></i>
+                        Student Averages
+                    </h1>
+                    <p class="averages-subtitle">{{ class_obj.name }} &mdash; {{ class_obj.semester.name }}</p>
+                </div>
+                <a href="{% url 'class_assessments' class_obj.id %}" class="btn-back">
+                    <i class="bi bi-arrow-left"></i> Back to Assessments
                 </a>
             </div>
-            <div class="card-body">
+
+            <!-- CARD -->
+            <div class="averages-card">
                 {% if student_data %}
                 <div class="table-responsive">
-                    <table class="table" id="averagesTable">
+                    <table class="averages-table" id="averagesTable">
                         <thead>
                             <tr>
-                                <th>No.</th>
-                                <th>Student Name</th>
-                                <th>
+                                <th class="col-no">No.</th>
+                                <th class="col-name">Student Name</th>
+                                <th class="col-avg">
                                     Average Score (%)
-                                    <button id="copyValuesBtn" class="btn-copy-icon" title="Copy all values">
-                                        <i class="bi bi-clipboard"></i>
+                                    <button id="copyValuesBtn" class="copy-btn" title="Copy all values">
+                                        <i class="bi bi-clipboard"></i> Copy
                                     </button>
                                 </th>
-                                <th>Assessments Taken</th>
+                                <th class="col-count">Assessments</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for item in student_data %}
                             <tr>
-                                <td>{{ forloop.counter }}</td>
-                                <td>{{ item.student.name }}</td>
-                                <td class="score-value">
+                                <td class="col-no">{{ forloop.counter }}</td>
+                                <td class="col-name" title="{{ item.student.name }}">{{ item.student.name }}</td>
+                                <td class="col-avg">
                                     {% if item.avg_percentage is not None %}
-                                        {{ item.avg_percentage|floatformat:1 }}%
+                                        <span class="score-value {% if item.avg_percentage < 70 %}low{% endif %}">{{ item.avg_percentage|floatformat:"-1" }}%</span>
                                     {% else %}
-                                        <span class="text-muted">—</span>
+                                        <span class="score-empty">—</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ item.assessed_count }} / {{ item.total_assessments }}</td>
+                                <td class="col-count">
+                                    <span class="count-badge {% if item.assessed_count == item.total_assessments and item.total_assessments > 0 %}full{% endif %}">
+                                        <i class="bi bi-check2-square"></i>
+                                        {{ item.assessed_count }} / {{ item.total_assessments }}
+                                    </span>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted">No students enrolled in this class.</p>
+                <div class="empty-state">
+                    <i class="bi bi-people"></i>
+                    <h5>No students enrolled</h5>
+                    <p>Add students to this class to see averages.</p>
+                </div>
                 {% endif %}
             </div>
+
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
+    <!-- Copy toast -->
+    <div id="copyToast" class="toast-copy">
+        <i class="bi bi-check-circle-fill"></i>
+        <span>Values copied</span>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
-
-        document.getElementById('copyValuesBtn').addEventListener('click', function() {
-            const scoreCells = document.querySelectorAll('#averagesTable tbody td.score-value');
-            let values = [];
-            scoreCells.forEach(cell => {
-                let text = cell.innerText.trim().replace('%', '').trim();
-                if (text !== '—' && text !== '') {
-                    values.push(text);
+        const copyBtn = document.getElementById('copyValuesBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                const scoreCells = document.querySelectorAll('#averagesTable tbody td.col-avg');
+                const values = [];
+                scoreCells.forEach(cell => {
+                    const text = cell.innerText.trim().replace('%', '').trim();
+                    if (text !== '—' && text !== '') {
+                        values.push(text);
+                    }
+                });
+                if (values.length === 0) {
+                    if (typeof showNotification === 'function') showNotification('No values to copy.', 'warning');
+                    return;
                 }
+                navigator.clipboard.writeText(values.join('\n')).then(() => {
+                    const toast = document.getElementById('copyToast');
+                    toast.classList.add('show');
+                    setTimeout(() => toast.classList.remove('show'), 2000);
+                    if (typeof addActivityLog === 'function') addActivityLog('Averages copied to clipboard');
+                }).catch(err => {
+                    console.error('Clipboard error:', err);
+                    if (typeof showNotification === 'function') showNotification('Failed to copy.', 'danger');
+                });
             });
-            if (values.length === 0) {
-                alert('No values to copy.');
-                return;
-            }
-            navigator.clipboard.writeText(values.join('\n')).then(() => {
-                const toast = document.getElementById('copyToast');
-                toast.classList.add('show');
-                setTimeout(() => { toast.classList.remove('show'); }, 2000);
-            }).catch(err => {
-                console.error('Clipboard error:', err);
-                alert('Failed to copy.');
-            });
-        });
+        }
     </script>
 </body>
 </html>

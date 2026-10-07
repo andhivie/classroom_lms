@@ -1,154 +1,341 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Attendance History - {{ class_obj.name }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance History — {{ class_obj.name }}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
     <style>
-        /* Hanya CSS spesifik halaman ini */
-        .card-body {
-            padding: 1rem 1.5rem 1.5rem;
+        body {
+            background: #FDF8F4;
+        }
+        .history-page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
 
-        .table td, .table th {
-            padding: 0.4rem 0.5rem;
+        /* Page header */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .history-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .history-title i {
+            color: #9B1B30;
+            font-size: 1.15rem;
+        }
+        .history-subtitle {
+            font-size: 0.85rem;
+            color: #6B7280;
+            margin: 0.15rem 0 0 0;
+        }
+        .btn-back {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.15s ease;
+        }
+        .btn-back:hover {
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+
+        /* Table card */
+        .history-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+            margin-bottom: 1.25rem;
+        }
+
+        /* ---------- Scroll container ---------- */
+        .table-scroll-container {
+            max-height: 560px;
+            overflow: auto;
+            position: relative;
+            scrollbar-width: thin;
+            scrollbar-color: #B8B0A8 #F5EDE5;
+        }
+        .table-scroll-container::-webkit-scrollbar {
+            height: 10px;
+            width: 10px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #F5EDE5;
+            border-radius: 5px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #C9BDB0;
+            border-radius: 5px;
+            border: 2px solid #F5EDE5;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #9B1B30;
+        }
+
+        /* ---------- Table ---------- */
+        .history-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 0;
+        }
+
+        /* Header row */
+        .history-table thead th {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.7rem;
+            padding: 0.75rem 0.4rem;
+            border: none;
+            text-align: center;
             vertical-align: middle;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            white-space: nowrap;
         }
 
-        /* Kolom No (sticky kiri) */
-        .table th:first-child,
-        .table td:first-child {
+        /* Sticky columns: No. + Name */
+        .history-table th.col-no,
+        .history-table td.col-no {
             position: sticky;
             left: 0;
-            z-index: 3;
-            background-color: #fff;
+            z-index: 4;
+            background: #ffffff;
+            width: 50px;
+            min-width: 50px;
             text-align: center;
-            width: 45px;
-            min-width: 45px;
+            box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
         }
-
-        /* Kolom Nama (sticky setelah No) – LEBAR TETAP */
-        .table th:nth-child(2) {
-            position: sticky;
-            left: 45px;
-            z-index: 3;
-            background-color: #fff;
-            text-align: center;           /* HEADER rata tengah */
-            width: 250px;
-            min-width: 250px;
-            white-space: normal;
-            word-break: break-word;
-        }
-        .table td:nth-child(2) {
-            position: sticky;
-            left: 45px;
-            z-index: 3;
-            background-color: #fff;
-            text-align: left;             /* ISI tetap rata kiri */
-            width: 250px;
-            min-width: 250px;
-            white-space: normal;
-            word-break: break-word;
-        }
-
-        /* Header dua kolom pertama lebih tinggi z-index */
-        .table thead th:first-child,
-        .table thead th:nth-child(2) {
+        .history-table th.col-no {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
             z-index: 6;
-            background-color: #003f5c;
-            color: white;
         }
 
-        /* Kolom tanggal (header dan isi) */
-        .table th:not(:first-child):not(:nth-child(2)),
-        .table td:not(:first-child):not(:nth-child(2)) {
-            text-align: center;
-            min-width: 70px;
+        .history-table th.col-name,
+        .history-table td.col-name {
+            position: sticky;
+            left: 50px;
+            z-index: 4;
+            background: #ffffff;
+            width: 300px;
+            min-width: 300px;
+            box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.08);
+        }
+        .history-table th.col-name {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            z-index: 6;
+            text-align: center; /* header text centered */
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        .history-table td.col-name {
+            text-align: left;
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
 
-        /* Tanpa border pada sel */
-        .table td, .table th {
-            border: none;
-        }
-
-        /* Container dengan scroll horizontal & vertikal */
-        .table-scroll-container {
-            max-height: 500px;
-            overflow: auto;
-        }
-
-        .legend-box {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: #f8fafc;
-            border-radius: 0.5rem;
-            border: 1px solid #e2e8f0;
+        /* Body rows */
+        .history-table tbody td {
+            padding: 0.65rem 0.4rem;
+            border-bottom: 1px solid #F5EDE5;
             font-size: 0.85rem;
+            text-align: center;
+            vertical-align: middle;
+            min-width: 58px;
+            background: #ffffff;
+        }
+        .history-table tbody tr:hover td:not(.col-no):not(.col-name) {
+            background: #FFFCFA;
+        }
+        .history-table tbody tr:hover td.col-no,
+        .history-table tbody tr:hover td.col-name {
+            background: #FFFCFA;
+        }
+        .history-table tbody tr:last-child td {
+            border-bottom: none;
         }
 
+        /* Student name cell */
+        .history-table td.col-name {
+            font-weight: 600;
+            color: #1F2937;
+            font-size: 0.88rem;
+            letter-spacing: -0.1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Row number */
+        .history-table td.col-no {
+            color: #9CA3AF;
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+
+        /* ---------- Status badges ---------- */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            transition: transform 0.15s ease;
+        }
+        .status-badge:hover {
+            transform: scale(1.1);
+        }
+        .status-badge.badge-present { background: #D1FAE5; color: #047857; }
+        .status-badge.badge-late    { background: #FEF3C7; color: #B45309; }
+        .status-badge.badge-absent  { background: #FEE2E2; color: #B91C1C; }
+        .status-badge.badge-excused { background: #DBEAFE; color: #1D4ED8; }
+        .status-badge.badge-sick    { background: #E5E7EB; color: #4B5563; }
+        .status-badge.badge-none    { background: transparent; color: #D1D5DB; font-weight: 400; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #9CA3AF;
+        }
+        .empty-state i {
+            font-size: 2.5rem;
+            opacity: 0.4;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+        .empty-state p {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        /* ---------- Legend ---------- */
+        .legend-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+        .legend-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0 0 0.75rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .legend-title i {
+            color: #9B1B30;
+        }
+        .legend-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.6rem;
+        }
         .legend-item {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            margin-bottom: 0.25rem;
+            font-size: 0.82rem;
+            color: #4B5563;
         }
 
-        /* Tombol Back to Attendance – putih dengan hover navbar */
-        .btn-back {
-            background-color: #ffffff;
-            border: 1px solid #003f5c;
-            color: #003f5c;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            padding: 0.4rem 1rem;
-            transition: all 0.2s ease;
-        }
-        .btn-back:hover {
-            background-color: #003f5c;
-            color: white;
+        /* ---------- Responsive ---------- */
+        @media (max-width: 767.98px) {
+            .history-title { font-size: 1.05rem; }
+            .history-header { flex-direction: column; align-items: flex-start; }
+            .btn-back { align-self: flex-start; }
+            .history-table th.col-name,
+            .history-table td.col-name {
+                width: 180px;
+                min-width: 180px;
+                font-size: 0.82rem;
+            }
+            .history-table tbody td {
+                font-size: 0.78rem;
+                min-width: 50px;
+                padding: 0.5rem 0.3rem;
+            }
+            .status-badge {
+                width: 24px;
+                height: 24px;
+                font-size: 0.66rem;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    {% include 'lms/_sidebar.html' %}
+    {% include 'lms/_navbar.html' %}
 
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Attendance History — {{ class_obj.name }}</h5>
-                <a href="{% url 'mark_attendance' class_obj.id %}" class="btn btn-back btn-sm">
-                    <i class="bi bi-arrow-left me-1"></i> Back to Attendance
+    <div class="container-fluid mt-3 mb-4">
+        <div class="history-page">
+
+            <!-- HEADER -->
+            <div class="history-header">
+                <div>
+                    <h1 class="history-title">
+                        <i class="bi bi-calendar-check"></i>
+                        Attendance History
+                    </h1>
+                    <p class="history-subtitle">{{ class_obj.name }} &mdash; {{ class_obj.semester.name }}</p>
+                </div>
+                <a href="{% url 'mark_attendance' class_obj.id %}" class="btn-back">
+                    <i class="bi bi-arrow-left"></i> Back to Attendance
                 </a>
             </div>
-            <div class="card-body">
-                {% if student_attendance %}
+
+            <!-- TABLE -->
+            {% if student_attendance %}
+            <div class="history-card">
                 <div class="table-scroll-container">
-                    <table class="table">
+                    <table class="history-table">
                         <thead>
                             <tr>
-                                <th>No.</th>
-                                <th>Student Name</th>
+                                <th class="col-no">No.</th>
+                                <th class="col-name">Student Name</th>
                                 {% for session in sessions %}
                                     <th>{{ session.date|date:"d/m" }}</th>
                                 {% endfor %}
@@ -157,22 +344,22 @@
                         <tbody>
                             {% for row in student_attendance %}
                             <tr>
-                                <td>{{ forloop.counter }}</td>
-                                <td>{{ row.student.name }}</td>
+                                <td class="col-no">{{ forloop.counter }}</td>
+                                <td class="col-name">{{ row.student.name }}</td>
                                 {% for status in row.statuses %}
                                     <td>
                                         {% if status == 'Present' %}
-                                            <span class="badge bg-success">P</span>
+                                            <span class="status-badge badge-present">P</span>
                                         {% elif status == 'Late' %}
-                                            <span class="badge bg-warning text-dark">L</span>
+                                            <span class="status-badge badge-late">L</span>
                                         {% elif status == 'Absent' %}
-                                            <span class="badge bg-danger">A</span>
+                                            <span class="status-badge badge-absent">A</span>
                                         {% elif status == 'Excused' %}
-                                            <span class="badge bg-info">E</span>
+                                            <span class="status-badge badge-excused">E</span>
                                         {% elif status == 'Sick' %}
-                                            <span class="badge bg-secondary">S</span>
+                                            <span class="status-badge badge-sick">S</span>
                                         {% else %}
-                                            <span class="text-muted">—</span>
+                                            <span class="status-badge badge-none">—</span>
                                         {% endif %}
                                     </td>
                                 {% endfor %}
@@ -181,41 +368,34 @@
                         </tbody>
                     </table>
                 </div>
-
-                <!-- LEGENDA -->
-                <div class="legend-box">
-                    <strong><i class="bi bi-info-circle me-2"></i>Note:</strong>
-                    <div class="row mt-2">
-                        <div class="col-md-4 legend-item"><span class="badge bg-success me-2">P</span> Present</div>
-                        <div class="col-md-4 legend-item"><span class="badge bg-warning text-dark me-2">L</span> Late</div>
-                        <div class="col-md-4 legend-item"><span class="badge bg-danger me-2">A</span> Absent</div>
-                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-info me-2">E</span> Excused</div>
-                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-secondary me-2">S</span> Sick</div>
-                        <div class="col-md-4 legend-item mt-1"><span class="badge bg-light text-dark border me-1">—</span> No data</div>
-                    </div>
-                </div>
-
-                {% else %}
-                <div class="text-center py-4 text-muted">
-                    <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                    <p class="mt-2">No attendance records yet.</p>
-                </div>
-                {% endif %}
             </div>
+
+            <!-- LEGEND -->
+            <div class="legend-card">
+                <h6 class="legend-title"><i class="bi bi-info-circle-fill"></i> Legend</h6>
+                <div class="legend-items">
+                    <div class="legend-item"><span class="status-badge badge-present">P</span> Present</div>
+                    <div class="legend-item"><span class="status-badge badge-late">L</span> Late</div>
+                    <div class="legend-item"><span class="status-badge badge-absent">A</span> Absent</div>
+                    <div class="legend-item"><span class="status-badge badge-excused">E</span> Excused</div>
+                    <div class="legend-item"><span class="status-badge badge-sick">S</span> Sick</div>
+                    <div class="legend-item"><span class="status-badge badge-none">—</span> No data</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="history-card">
+                <div class="empty-state">
+                    <i class="bi bi-calendar-x"></i>
+                    <p>No attendance records yet.</p>
+                    <small>Start marking attendance to see history here.</small>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
-    <script>
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
-    </script>
 </body>
 </html>

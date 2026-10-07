@@ -1,180 +1,562 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Feedback for {{ student.name }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback — {{ student.name }}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <style>
-        /* Hanya style khusus halaman ini */
-        .form-label {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
+        body {
+            background: #FDF8F4;
+            padding-bottom: 90px;
         }
-        .feedback-preview {
-            background-color: #ffffff;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 0.75rem;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            color: #212529;
+        .feedback-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* ---------- Page header ---------- */
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .feedback-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .feedback-title i {
+            color: #9B1B30;
+            font-size: 1.15rem;
+        }
+        .feedback-subtitle {
+            font-size: 0.85rem;
+            color: #6B7280;
+            margin: 0.15rem 0 0 0;
+        }
+        .feedback-subtitle strong {
+            color: #1F2937;
+            font-weight: 700;
+        }
+
+        /* ---------- Missing assessments alert ---------- */
+        .missing-alert {
+            background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+            border: 1px solid #FDE68A;
+            border-left: 4px solid #F59E0B;
+            border-radius: 0.75rem;
+            padding: 0.85rem 1.1rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.85rem;
+            color: #92400E;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        .missing-alert > i {
+            color: #D97706;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            margin-top: 0.1rem;
+        }
+        .missing-alert .alert-text {
+            flex: 1 1 auto;
+            min-width: 200px;
+        }
+        .missing-alert .alert-text strong {
+            font-weight: 700;
+            color: #7C2D12;
+        }
+        .missing-alert .alert-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.5rem;
+            width: 100%;
+        }
+        .missing-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+            border-radius: 0.4rem;
+            padding: 0.2rem 0.55rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .missing-badge:hover {
+            background: #FDE68A;
+            color: #7C2D12;
+        }
+
+        /* ---------- Editor card ---------- */
+        .editor-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+
+        .editor-card-header {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .editor-card-header i {
+            font-size: 1.05rem;
+        }
+
+        .editor-card-body {
+            padding: 1.5rem;
+        }
+
+        .editor-label {
+            font-weight: 600;
+            color: #1F2937;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .editor-label .help-text {
+            font-weight: 400;
+            font-size: 0.78rem;
+            color: #9CA3AF;
+        }
+
+        /* SimpleMDE override — Andhivie theme */
+        .CodeMirror {
+            border-radius: 0 0 0.6rem 0.6rem !important;
+            border: 1.5px solid #E8E1DA !important;
+            border-top: none !important;
+            height: auto !important;
+            min-height: 260px !important;
+            max-height: 460px !important;
+            font-size: 0.92rem;
+            color: #1F2937;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+        }
+        .CodeMirror-scroll {
+            min-height: 260px !important;
+            max-height: 460px !important;
+            padding-bottom: 8px !important;
+        }
+        .CodeMirror-focused {
+            border-color: #9B1B30 !important;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
         }
         .editor-toolbar {
-            border-radius: 0.5rem 0.5rem 0 0;
-            border: 1px solid #dee2e6;
-            border-bottom: none;
-            background: #f8f9fa;
-            padding: 0.3rem;
+            border: 1.5px solid #E8E1DA !important;
+            border-bottom: none !important;
+            border-radius: 0.6rem 0.6rem 0 0 !important;
+            background: #FAF6F1 !important;
+            padding: 0.35rem 0.5rem !important;
         }
-        .CodeMirror {
-            border-radius: 0 0 0.5rem 0.5rem;
-            border: 1px solid #dee2e6;
-            min-height: 250px;
-            font-size: 0.9rem;
+        .editor-toolbar button {
+            color: #6B7280 !important;
+            border-radius: 0.35rem;
         }
-        .CodeMirror-scroll { max-height: 400px; }
+        .editor-toolbar button:hover {
+            background: #FDF3F0 !important;
+            color: #9B1B30 !important;
+        }
+        .editor-toolbar button.active {
+            background: #9B1B30 !important;
+            color: #ffffff !important;
+        }
+        .editor-toolbar i.separator {
+            border-color: #E8E1DA !important;
+        }
+        .editor-statusbar {
+            color: #B8B0A8 !important;
+            padding: 0.4rem 0.75rem !important;
+            font-size: 0.75rem !important;
+        }
+        /* Custom scrollbar for CodeMirror */
+        .CodeMirror-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .CodeMirror-scroll::-webkit-scrollbar-track {
+            background: #FAF6F1;
+        }
+        .CodeMirror-scroll::-webkit-scrollbar-thumb {
+            background: #D4CCC3;
+            border-radius: 4px;
+        }
+        .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
+            background: #9B1B30;
+        }
+
+        /* ---------- Action buttons under editor ---------- */
+        .editor-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 1.25rem;
+        }
+
+        .btn-action {
+            border-radius: 0.55rem;
+            padding: 0.55rem 1.1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-action:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-save-primary {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(155, 27, 48, 0.22);
+        }
+        .btn-save-primary:hover {
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(155, 27, 48, 0.30);
+        }
+
+        .btn-ai {
+            background: linear-gradient(135deg, #E07A3D 0%, #C4652E 100%);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(224, 122, 61, 0.22);
+        }
+        .btn-ai:hover {
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(224, 122, 61, 0.30);
+        }
+
+        .btn-pdf {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(5, 150, 105, 0.22);
+        }
+        .btn-pdf:hover {
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.30);
+        }
+
+        .btn-cancel-soft {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+        }
+        .btn-cancel-soft:hover {
+            background: #FAF6F1;
+            color: #1F2937;
+            border-color: #DCD4CB;
+        }
+
         .autosave-indicator {
             font-size: 0.8rem;
-            color: #198754;
-            margin-left: 1rem;
-            font-weight: 500;
+            color: #059669;
+            font-weight: 600;
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        .alert-soft-warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffecb5;
+        .autosave-indicator.show {
+            opacity: 1;
+        }
+
+        /* ---------- Preview section ---------- */
+        .preview-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid #F5EDE5;
+        }
+        .preview-toggle-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .preview-toggle-title i {
+            color: #9B1B30;
+        }
+        .preview-toggle-btn {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
             border-radius: 0.5rem;
-            color: #664d03;
-            padding: 0.75rem 1rem;
-            font-size: 0.85rem;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
         }
-        .btn-primary { background-color: #003f5c; border: none; color: white; }
-        .btn-primary:hover { background-color: #002a3f; }
-        .btn-secondary { background-color: #6c757d; border: none; color: white; }
-        .btn-secondary:hover { background-color: #5c636a; }
-        .btn-outline-secondary { border: 1px solid #6c757d; color: #6c757d; }
-        .btn-outline-secondary:hover { background-color: #6c757d; color: white; }
-        .btn-success { background-color: #198754; border: none; }
-        .btn-success:hover { background-color: #157347; }
-        .btn-danger { background-color: #dc3545; border: none; }
-        .btn-danger:hover { background-color: #bb2d3b; }
+        .preview-toggle-btn:hover {
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+
+        .feedback-preview {
+            background: #FAF6F1;
+            border: 1px solid #F0EAE3;
+            border-left: 4px solid #E07A3D;
+            border-radius: 0.75rem;
+            padding: 1.25rem 1.5rem;
+            margin-top: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: #1F2937;
+        }
+        .feedback-preview p {
+            margin-bottom: 0.85rem;
+        }
+        .feedback-preview p:last-child {
+            margin-bottom: 0;
+        }
+        .feedback-preview h1, .feedback-preview h2, .feedback-preview h3 {
+            color: #7A1526;
+            font-weight: 700;
+            margin-top: 1.1rem;
+            margin-bottom: 0.6rem;
+        }
+        .feedback-preview h1 { font-size: 1.25rem; }
+        .feedback-preview h2 { font-size: 1.1rem; }
+        .feedback-preview h3 { font-size: 1rem; }
+        .feedback-preview strong {
+            color: #1F2937;
+            font-weight: 700;
+        }
+        .feedback-preview ul, .feedback-preview ol {
+            padding-left: 1.4rem;
+            margin-bottom: 0.85rem;
+        }
+        .feedback-preview li {
+            margin-bottom: 0.25rem;
+        }
+        .feedback-preview blockquote {
+            border-left: 3px solid #D4B16A;
+            padding-left: 0.85rem;
+            color: #6B7280;
+            font-style: italic;
+            margin: 0.85rem 0;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 767.98px) {
+            .feedback-title { font-size: 1.05rem; }
+            .feedback-header { flex-direction: column; align-items: flex-start; }
+            .editor-card-body { padding: 1rem; }
+            .editor-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .editor-actions .btn-action {
+                justify-content: center;
+                width: 100%;
+            }
+            .autosave-indicator {
+                margin-left: 0;
+                justify-content: center;
+                width: 100%;
+            }
+            .CodeMirror {
+                min-height: 220px !important;
+                max-height: 380px !important;
+                font-size: 0.88rem;
+            }
+            .CodeMirror-scroll {
+                min-height: 220px !important;
+                max-height: 380px !important;
+            }
+            .feedback-preview {
+                padding: 1rem;
+                font-size: 0.88rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    {% include 'lms/_sidebar.html' %}
+    {% include 'lms/_navbar.html' %}
 
-    <div class="container mt-4 main-container">
-        <div class="card">
-            <div class="card-header d-flex align-items-center">
-                <i class="bi bi-chat-square-text me-2"></i>
-                <h5 class="mb-0">Feedback for {{ student.name }} — {{ class_obj.name }}</h5>
-            </div>
-            <div class="card-body">
+    <div class="container-fluid mt-3 mb-4">
+        <div class="feedback-page">
 
-                {% if missing_assessments %}
-                <div class="alert-soft-warning d-flex align-items-center flex-wrap gap-2 mb-3">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <span><strong>{{ missing_assessments|length }}</strong> asesmen belum dinilai:</span>
-                    {% for ass in missing_assessments %}
-                        <a href="{% url 'enter_scores' ass.id %}" class="badge bg-warning text-dark text-decoration-none me-1 mb-1">
-                            {{ ass.name }} ({{ ass.max_points }} poin)
-                        </a>
-                    {% endfor %}
+            <!-- HEADER -->
+            <div class="feedback-header">
+                <div>
+                    <h1 class="feedback-title">
+                        <i class="bi bi-journal-text"></i>
+                        Student Feedback
+                    </h1>
+                    <p class="feedback-subtitle">
+                        <strong>{{ student.name }}</strong> &mdash; {{ class_obj.name }}
+                    </p>
                 </div>
-                {% endif %}
+            </div>
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert"
+                         style="border-radius: 0.75rem; font-size: 0.88rem; border-left: 4px solid #059669;">
+                        <i class="bi bi-check-circle-fill me-2" style="color: #059669;"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
 
-                <form method="post" id="feedbackForm">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label">Edit Feedback (Markdown enabled)</label>
+            <!-- MISSING ASSESSMENTS ALERT -->
+            {% if missing_assessments %}
+            <div class="missing-alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div class="alert-text">
+                    <strong>{{ missing_assessments|length }}</strong> assessment{{ missing_assessments|length|pluralize }} not yet graded:
+                    <div class="alert-badges">
+                        {% for ass in missing_assessments %}
+                            <a href="{% url 'enter_scores' ass.id %}" class="missing-badge">
+                                <i class="bi bi-pencil-square"></i>
+                                {{ ass.name }} <span style="opacity:0.75;">({{ ass.max_points|floatformat:"-1" }} pts)</span>
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- EDITOR CARD -->
+            <div class="editor-card">
+
+                <div class="editor-card-header">
+                    <i class="bi bi-pencil-fill"></i>
+                    Edit Feedback
+                </div>
+
+                <div class="editor-card-body">
+                    <form method="post" id="feedbackForm">
+                        {% csrf_token %}
+
+                        <div class="editor-label">
+                            <span>Feedback Content</span>
+                            <span class="help-text"><i class="bi bi-markdown"></i> Markdown supported</span>
+                        </div>
+
                         <textarea name="feedback_text" id="feedback-editor" style="display: none;">{{ feedback.feedback_text }}</textarea>
-                    </div>
-                    <div class="d-flex gap-2 align-items-center flex-wrap">
-                        <button type="submit" name="action" value="save_manual" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Manual</button>
-                        <button type="submit" name="action" value="generate_ai" class="btn btn-secondary"><i class="bi bi-robot me-1"></i> Generate AI Feedback</button>
-                        <a href="{% url 'generate_report_pdf' student.id class_obj.id %}" class="btn btn-success" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i> Download PDF</a>
-                        <a href="{% url 'dashboard' %}" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i> Cancel</a>
-                        <span id="autosave-status" class="autosave-indicator"></span>
-                    </div>
-                </form>
 
-                <div class="mt-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0" style="font-size: 1rem;"><i class="bi bi-eye me-2"></i>Preview</h5>
-                        <button id="togglePreviewBtn" class="btn btn-outline-secondary btn-sm">Show Preview</button>
+                        <div class="editor-actions">
+                            <button type="submit" name="action" value="save_manual" class="btn-action btn-save-primary">
+                                <i class="bi bi-save-fill"></i> Save Manual
+                            </button>
+                            <button type="submit" name="action" value="generate_ai" class="btn-action btn-ai" id="generateAiBtn">
+                                <i class="bi bi-robot"></i> Generate AI Feedback
+                            </button>
+                            <a href="{% url 'generate_report_pdf' student.id class_obj.id %}" class="btn-action btn-pdf" target="_blank">
+                                <i class="bi bi-file-earmark-pdf-fill"></i> Download PDF
+                            </a>
+                            <a href="{% url 'dashboard' %}?class_id={{ class_obj.id }}" class="btn-action btn-cancel-soft">
+                                <i class="bi bi-x-lg"></i> Cancel
+                            </a>
+                            <span id="autosave-status" class="autosave-indicator">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Auto-saved</span>
+                            </span>
+                        </div>
+                    </form>
+
+                    <!-- PREVIEW -->
+                    <div class="preview-toggle">
+                        <h5 class="preview-toggle-title">
+                            <i class="bi bi-eye-fill"></i>
+                            Preview
+                        </h5>
+                        <button type="button" id="togglePreviewBtn" class="preview-toggle-btn">
+                            <i class="bi bi-chevron-down"></i> Show Preview
+                        </button>
                     </div>
+
                     <div id="previewContainer" style="display: none;">
                         <div id="preview-content" class="feedback-preview">
-                            {{ feedback.feedback_text|linebreaks|safe }}
+                            <!-- Filled by JS -->
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
     <script>
-     
-        // ---------- JAM ----------
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
-
-        // ---------- NOTIFIKASI ----------
-        function showNotification(message, type) {
-            const notif = document.createElement('div');
-            notif.className = `alert alert-${type} alert-dismissible fade show notification-toast`;
-            notif.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-            document.body.appendChild(notif);
-            setTimeout(() => notif.remove(), 4000);
-        }
-
-        // ---------- SIMPLEMDE ----------
+        // ---------- SimpleMDE init ----------
         const simplemde = new SimpleMDE({
             element: document.getElementById("feedback-editor"),
             spellChecker: false,
-            toolbar: ["bold", "italic", "heading", "|", "unordered-list", "ordered-list", "|", "preview", "guide"],
+            toolbar: [
+                "bold", "italic", "heading", "|",
+                "unordered-list", "ordered-list", "|",
+                "preview", "guide"
+            ],
             status: false,
-            placeholder: "Tulis feedback... (gunakan **tebal**, *miring*, - daftar)"
+            placeholder: "Write feedback here... (use **bold**, *italic*, - lists)",
+            renderingConfig: {
+                singleLineBreaks: false,
+            }
         });
 
+        // ---------- Preview update ----------
         function updatePreview() {
             const html = marked.parse(simplemde.value());
-            document.getElementById('preview-content').innerHTML = html;
+            document.getElementById('preview-content').innerHTML = html || '<p class="text-muted">No content to preview.</p>';
         }
         let previewTimer;
         simplemde.codemirror.on('change', () => {
@@ -183,10 +565,33 @@
         });
         updatePreview();
 
-        // ---------- AUTOSAVE (2 detik) ----------
+        // ---------- Preview toggle ----------
+        let previewVisible = localStorage.getItem('previewVisible') === 'true';
+        const previewContainer = document.getElementById('previewContainer');
+        const toggleBtn = document.getElementById('togglePreviewBtn');
+
+        function applyPreviewState() {
+            if (previewVisible) {
+                previewContainer.style.display = 'block';
+                toggleBtn.innerHTML = '<i class="bi bi-chevron-up"></i> Hide Preview';
+                updatePreview();
+            } else {
+                previewContainer.style.display = 'none';
+                toggleBtn.innerHTML = '<i class="bi bi-chevron-down"></i> Show Preview';
+            }
+        }
+        applyPreviewState();
+
+        toggleBtn.addEventListener('click', () => {
+            previewVisible = !previewVisible;
+            localStorage.setItem('previewVisible', previewVisible);
+            applyPreviewState();
+        });
+
+        // ---------- Autosave (2s) ----------
         let autosaveTimer;
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const statusSpan = document.getElementById('autosave-status');
+        const statusEl = document.getElementById('autosave-status');
 
         function performAutosave() {
             const text = simplemde.value();
@@ -202,9 +607,9 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    statusSpan.textContent = '✓ Auto-saved';
-                    addActivityLog('Feedback saved');
-                    setTimeout(() => { statusSpan.textContent = ''; }, 2000);
+                    statusEl.classList.add('show');
+                    if (typeof addActivityLog === 'function') addActivityLog('Feedback auto-saved');
+                    setTimeout(() => { statusEl.classList.remove('show'); }, 2200);
                 }
             })
             .catch(err => console.error('Autosave error:', err));
@@ -215,35 +620,31 @@
             autosaveTimer = setTimeout(performAutosave, 2000);
         });
 
-        // ---------- TOGGLE PREVIEW ----------
-        let previewVisible = localStorage.getItem('previewVisible') === 'true';
-        const previewContainer = document.getElementById('previewContainer');
-        const toggleBtn = document.getElementById('togglePreviewBtn');
-
-        if (previewVisible) {
-            previewContainer.style.display = 'block';
-            toggleBtn.textContent = 'Hide Preview';
-        } else {
-            previewContainer.style.display = 'none';
-            toggleBtn.textContent = 'Show Preview';
-        }
-
-        toggleBtn.addEventListener('click', () => {
-            previewVisible = !previewVisible;
-            previewContainer.style.display = previewVisible ? 'block' : 'none';
-            toggleBtn.textContent = previewVisible ? 'Hide Preview' : 'Show Preview';
-            if (previewVisible) updatePreview();
-            localStorage.setItem('previewVisible', previewVisible);
-        });
-
+        // ---------- Form submit ----------
         document.getElementById('feedbackForm').addEventListener('submit', function(e) {
             document.getElementById('feedback-editor').value = simplemde.value();
-            const action = document.activeElement.getAttribute('value');
-            if (action === 'save_manual') {
-                addActivityLog('Feedback saved manually');
-            } else if (action === 'generate_ai') {
-                addActivityLog('AI feedback generated');
-            }
+        });
+
+        // ---------- Generate AI loading state ----------
+        const generateAiBtn = document.getElementById('generateAiBtn');
+        if (generateAiBtn) {
+            generateAiBtn.addEventListener('click', function() {
+                setTimeout(() => {
+                    this.disabled = true;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generating...';
+                }, 10);
+            });
+        }
+        // ---------- Auto-dismiss alerts ----------
+        document.querySelectorAll('.alert-dismissible').forEach(function(alertEl) {
+            setTimeout(function() {
+                alertEl.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                alertEl.style.opacity = '0';
+                alertEl.style.transform = 'translateY(-10px)';
+                setTimeout(function() {
+                    alertEl.remove();
+                }, 400);
+            }, 4000);
         });
     </script>
 </body>

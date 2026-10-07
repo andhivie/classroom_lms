@@ -2,204 +2,470 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Charts - Classroom LMS</title>
+    <title>Charts — Classroom LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Hanya CSS spesifik halaman ini */
-        .card-header {
-            background-color: #003f5c;
-            color: white;
-            font-weight: bold;
+        body {
+            background: #f4f6f9;
         }
-        canvas {
-            max-height: 300px;
+
+        /* ---------- Page header ---------- */
+        .charts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .charts-header h1 {
+            font-weight: 700;
+            color: #003f5c;
+            font-size: 1.6rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .charts-header p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin: 0.25rem 0 0 0;
+        }
+
+        /* ---------- Chart cards ---------- */
+        .chart-card {
+            background: #ffffff;
+            border-radius: 1rem;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+        .chart-card-header {
+            background: linear-gradient(135deg, #003f5c 0%, #002a3f 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .chart-card-header .title {
+            font-weight: 600;
+            font-size: 1.02rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+        }
+        .chart-card-header .subtitle {
+            font-size: 0.82rem;
+            color: #cbd5e1;
+            margin: 0.15rem 0 0 1.75rem;
+        }
+        .chart-card-body {
+            padding: 1.5rem;
+        }
+
+        /* ---------- Class selector ---------- */
+        .chart-selector {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 0.45rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            min-width: 180px;
+        }
+        .chart-selector:focus {
+            outline: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .chart-selector option {
+            color: #1f2937;
+            background: white;
+        }
+
+        /* ---------- Chart container ---------- */
+        .chart-container {
+            position: relative;
+            height: 320px;
             width: 100%;
+        }
+
+        /* ---------- Empty state ---------- */
+        .empty-chart-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 1rem;
+            color: #9ca3af;
+            text-align: center;
+        }
+        .empty-chart-state i {
+            font-size: 3rem;
+            color: #cbd5e1;
+            margin-bottom: 0.75rem;
+        }
+        .empty-chart-state p {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+        .empty-chart-state small {
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+
+        /* ---------- Info note ---------- */
+        .info-note {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 1px solid #bae6fd;
+            border-radius: 0.75rem;
+            padding: 0.85rem 1.1rem;
+            font-size: 0.85rem;
+            color: #1e3a5f;
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.6rem;
+            align-items: flex-start;
+        }
+        .info-note i {
+            color: #0369a1;
+            font-size: 1rem;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+        .info-note strong { color: #0c4a6e; }
+
+        /* ---------- Mobile tweaks ---------- */
+        @media (max-width: 767.98px) {
+            .charts-header h1 { font-size: 1.25rem; }
+            .chart-card-body { padding: 1rem; }
+            .chart-container { height: 260px; }
+            .chart-card-header { padding: 0.85rem 1rem; }
+            .chart-selector { width: 100%; min-width: auto; margin-top: 0.5rem; }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% include 'lms/_navbar.html' with active='charts' %}
 
     {% include 'lms/_sidebar.html' %}
 
-    <div class="container mt-4">
-        <h1>Data Charts</h1>
-
-        <!-- Grafik 1: Rata-rata Final Score per Kelas -->
-        <div class="card shadow mb-4">
-            <div class="card-header">Rata-rata Final Score per Kelas</div>
-            <div class="card-body">
-                <canvas id="avgScoreChart" width="400" height="200"></canvas>
+    <div class="container mt-4 mb-5">
+        <!-- PAGE HEADER -->
+        <div class="charts-header">
+            <div>
+                <h1><i class="bi bi-bar-chart-line-fill"></i> Data Insights</h1>
+                <p>Visual summary of student performance across your classes</p>
             </div>
         </div>
 
-        <!-- Grafik 2: Histogram Distribusi Final Score dengan filter kelas -->
-        <div class="card shadow mb-4" id="histogramCard">
-            <div class="card-header">
-                Distribusi Final Score dalam Kelas
-                {% if selected_class_name %}
-                    - {{ selected_class_name }}
+        <!-- CHART 1: Average Final Score per Class -->
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <div>
+                    <h5 class="title"><i class="bi bi-graph-up-arrow"></i> Average Final Score per Class</h5>
+                    <div class="subtitle">How each class performs on average</div>
+                </div>
+            </div>
+            <div class="chart-card-body">
+                {% if chart_class_names %}
+                    <div class="chart-container">
+                        <canvas id="avgScoreChart"></canvas>
+                    </div>
+                {% else %}
+                    <div class="empty-chart-state">
+                        <i class="bi bi-bar-chart"></i>
+                        <p>No data available yet</p>
+                        <small>Add students and assessments to see the chart</small>
+                    </div>
                 {% endif %}
             </div>
-            <div class="card-body">
-                <form method="get" class="mb-3">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <select name="class_id" class="form-select" onchange="window.location.href = '?class_id=' + this.value + '#histogramCard'">
-                                <option value="">-- Pilih Kelas --</option>
-                                {% for cls in all_classes %}
-                                    <option value="{{ cls.id }}">
-                                        {{ cls.name }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
+        </div>
+
+        <!-- CHART 2: Distribution of Final Score -->
+        <div class="chart-card" id="histogramCard">
+            <div class="chart-card-header">
+                <div>
+                    <h5 class="title"><i class="bi bi-bar-chart-fill"></i> Final Score Distribution</h5>
+                    <div class="subtitle">
+                        {% if selected_class_name %}
+                            Showing: {{ selected_class_name }}
+                        {% else %}
+                            Select a class to see its score distribution
+                        {% endif %}
                     </div>
+                </div>
+                <form method="get">
+                    <select name="class_id" class="chart-selector" onchange="this.form.submit()">
+                        <option value="">-- Select Class --</option>
+                        {% for cls in all_classes %}
+                            <option value="{{ cls.id }}" {% if selected_class_id|stringformat:"s" == cls.id|stringformat:"s" %}selected{% endif %}>
+                                {{ cls.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
                 </form>
-                <canvas id="histogramChart" width="400" height="200"></canvas>
+            </div>
+            <div class="chart-card-body">
+                {% if selected_class_id and range_counts %}
+                    <div class="chart-container">
+                        <canvas id="histogramChart"></canvas>
+                    </div>
+                {% else %}
+                    <div class="empty-chart-state">
+                        <i class="bi bi-bar-chart-steps"></i>
+                        <p>Please select a class</p>
+                        <small>Choose a class from the dropdown above to view its distribution</small>
+                    </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Grafik 3: Perbandingan Komponen Final Score antar Kelas -->
-        <div class="card shadow mb-4">
-            <div class="card-header">Perbandingan Komponen Final Score per Kelas</div>
-            <div class="card-body">
-                <canvas id="componentsChart" width="400" height="200"></canvas>
+        <!-- CHART 3: Components -->
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <div>
+                    <h5 class="title"><i class="bi bi-stack"></i> Final Score Components</h5>
+                    <div class="subtitle">Academic average plus behavior bonus per class</div>
+                </div>
+            </div>
+            <div class="chart-card-body">
+                <div class="info-note">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        <strong>Final Score = Pure Academic Average + Bonus.</strong>
+                        Attendance and behavior points do not directly affect the academic score &mdash;
+                        only converted bonus adds on top.
+                    </div>
+                </div>
+                {% if chart_class_names %}
+                    <div class="chart-container">
+                        <canvas id="componentsChart"></canvas>
+                    </div>
+                {% else %}
+                    <div class="empty-chart-state">
+                        <i class="bi bi-stack"></i>
+                        <p>No component data available</p>
+                        <small>Add assessments and behavior points to view this chart</small>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
+    <div class="bottom-clock d-none d-md-block" id="live-clock"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        // Fungsi clock (spesifik halaman)
         function updateClock() {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
+            const el = document.getElementById('live-clock');
+            if (el) el.innerText = now.toLocaleDateString('id-ID', options);
         }
         updateClock();
         setInterval(updateClock, 1000);
 
-        // csrfToken sudah disediakan oleh sidebar.js
-
         document.addEventListener('DOMContentLoaded', function() {
-            // 1. Rata-rata Final Score per Kelas
-            const ctx1 = document.getElementById('avgScoreChart').getContext('2d');
-            const labels1 = {{ chart_class_names|safe }};
-            const scores1 = {{ chart_class_avg_scores|safe }};
-            if (labels1.length > 0) {
-                new Chart(ctx1, {
+            // ---------- Shared chart defaults ----------
+            Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
+            Chart.defaults.font.size = 12;
+            Chart.defaults.color = '#4b5563';
+
+            // ---------- 1. Average Final Score per Class ----------
+            const ctx1 = document.getElementById('avgScoreChart');
+            if (ctx1) {
+                const labels1 = {{ chart_class_names|safe }};
+                const scores1 = {{ chart_class_avg_scores|safe }};
+                new Chart(ctx1.getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels: labels1,
                         datasets: [{
-                            label: 'Rata-rata Final Score',
+                            label: 'Average Final Score',
                             data: scores1,
-                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 1
+                            backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                            borderColor: 'rgba(37, 99, 235, 1)',
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            maxBarThickness: 60
                         }]
                     },
                     options: {
-                        scales: {
-                            y: { beginAtZero: true, max: 100, title: { display: true, text: 'Final Score' } },
-                            x: { title: { display: true, text: 'Kelas' } }
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#003f5c',
+                                padding: 10,
+                                cornerRadius: 8,
+                                titleFont: { size: 13, weight: '600' },
+                                bodyFont: { size: 12 }
+                            }
                         },
-                        responsive: true
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 20 },
+                                grid: { color: '#f1f5f9' },
+                                title: { display: true, text: 'Final Score', color: '#6b7280' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                title: { display: false }
+                            }
+                        }
                     }
                 });
             }
 
-            // 2. Histogram Distribusi Final Score
-            const ctxHist = document.getElementById('histogramChart').getContext('2d');
-            const ranges = {{ score_ranges|safe }};
-            const counts = {{ range_counts|safe }};
-            if (ranges.length > 0 && counts.some(c => c > 0)) {
-                new Chart(ctxHist, {
+            // ---------- 2. Histogram ----------
+            const ctxHist = document.getElementById('histogramChart');
+            if (ctxHist) {
+                const ranges = {{ score_ranges|safe }};
+                const counts = {{ range_counts|safe }};
+                new Chart(ctxHist.getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels: ranges,
                         datasets: [{
-                            label: 'Jumlah Siswa',
+                            label: 'Number of Students',
                             data: counts,
-                            backgroundColor: 'rgba(153, 102, 255, 0.6)',
-                            borderColor: 'rgba(153, 102, 255, 1)',
-                            borderWidth: 1
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.7)',
+                                'rgba(245, 158, 11, 0.7)',
+                                'rgba(234, 179, 8, 0.7)',
+                                'rgba(34, 197, 94, 0.7)',
+                                'rgba(16, 185, 129, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(239, 68, 68, 1)',
+                                'rgba(245, 158, 11, 1)',
+                                'rgba(234, 179, 8, 1)',
+                                'rgba(34, 197, 94, 1)',
+                                'rgba(16, 185, 129, 1)'
+                            ],
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            maxBarThickness: 70
                         }]
                     },
                     options: {
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Jumlah Siswa' }, stepSize: 1 },
-                            x: { title: { display: true, text: 'Rentang Final Score' } }
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#003f5c',
+                                padding: 10,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(ctx) {
+                                        const val = ctx.parsed.y;
+                                        return val + (val === 1 ? ' student' : ' students');
+                                    }
+                                }
+                            }
                         },
-                        responsive: true
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { stepSize: 1, precision: 0 },
+                                grid: { color: '#f1f5f9' },
+                                title: { display: true, text: 'Number of Students', color: '#6b7280' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                title: { display: true, text: 'Final Score Range', color: '#6b7280' }
+                            }
+                        }
                     }
                 });
             }
 
-            // 3. Perbandingan Komponen Final Score per Kelas
-            const ctxComp = document.getElementById('componentsChart').getContext('2d');
-            const classNames = {{ chart_class_names|safe }};
-            const academicData = {{ chart_components.academic|safe }};
-            const attendanceData = {{ chart_components.attendance|safe }};
-            const positiveData = {{ chart_components.positive|safe }};
-            const negativeData = {{ chart_components.negative|safe }};
-            if (classNames.length > 0) {
-                new Chart(ctxComp, {
+            // ---------- 3. Components: Academic + Bonus ----------
+            const ctxComp = document.getElementById('componentsChart');
+            if (ctxComp) {
+                const classNames = {{ chart_class_names|safe }};
+                const academicData = {{ chart_components.academic|safe }};
+                const bonusData = {{ chart_components.bonus|safe }};
+                new Chart(ctxComp.getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels: classNames,
                         datasets: [
-                            { label: 'Academic', data: academicData, backgroundColor: 'rgba(255, 99, 132, 0.6)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 },
-                            { label: 'Attendance', data: attendanceData, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
-                            { label: 'Positive Behavior', data: positiveData, backgroundColor: 'rgba(75, 192, 192, 0.6)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1 },
-                            { label: 'Negative Behavior', data: negativeData, backgroundColor: 'rgba(255, 206, 86, 0.6)', borderColor: 'rgba(255, 206, 86, 1)', borderWidth: 1 }
+                            {
+                                label: 'Academic Average',
+                                data: academicData,
+                                backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                                borderColor: 'rgba(37, 99, 235, 1)',
+                                borderWidth: 1.5,
+                                borderRadius: 6,
+                                maxBarThickness: 40
+                            },
+                            {
+                                label: 'Bonus',
+                                data: bonusData,
+                                backgroundColor: 'rgba(217, 119, 6, 0.8)',
+                                borderColor: 'rgba(217, 119, 6, 1)',
+                                borderWidth: 1.5,
+                                borderRadius: 6,
+                                maxBarThickness: 40
+                            }
                         ]
                     },
                     options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
                             legend: {
                                 position: 'top',
+                                align: 'end',
                                 labels: {
-                                    boxWidth: 12,
-                                    padding: 15
+                                    boxWidth: 14,
+                                    boxHeight: 14,
+                                    padding: 15,
+                                    usePointStyle: true,
+                                    pointStyle: 'rectRounded',
+                                    font: { size: 12, weight: '500' }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: '#003f5c',
+                                padding: 10,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return ctx.dataset.label + ': ' + ctx.parsed.y;
+                                    }
                                 }
                             }
                         },
-                        layout: {
-                            padding: {
-                                top: 10,
-                                bottom: 10
-                            }
-                        },
                         scales: {
-                            y: { beginAtZero: true, max: 100, title: { display: true, text: 'Nilai Komponen (0-100)' } },
-                            x: { title: { display: false } }
-                        },
-                        responsive: true,
-                        maintainAspectRatio: true
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 20 },
+                                grid: { color: '#f1f5f9' },
+                                title: { display: true, text: 'Points (0-100)', color: '#6b7280' }
+                            },
+                            x: {
+                                grid: { display: false }
+                            }
+                        }
                     }
                 });
             }

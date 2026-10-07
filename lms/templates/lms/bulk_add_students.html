@@ -1,139 +1,258 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Add Students</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
     <style>
-        /* Hanya CSS spesifik halaman ini */
-        .card-body {
-            padding: 1.5rem;
+        body { background: #FDF8F4; }
+        .bulk-page {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .bulk-header {
+            margin-bottom: 1.25rem;
+        }
+        .bulk-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .bulk-title i {
+            color: #9B1B30;
+            font-size: 1.15rem;
+        }
+        .bulk-subtitle {
+            font-size: 0.85rem;
+            color: #6B7280;
+            margin: 0.15rem 0 0 0;
+        }
+
+        .bulk-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+        .bulk-card-body {
+            padding: 1.75rem;
         }
 
         .form-label {
             font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
+            color: #1F2937;
+            font-size: 0.85rem;
+            margin-bottom: 0.4rem;
+        }
+        .form-label .required {
+            color: #DC2626;
         }
 
-        .form-control, .form-select {
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 0.6rem 1rem;
-            font-size: 0.9rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
+        .form-control,
+        .form-select {
+            border: 1.5px solid #E8E1DA;
+            border-radius: 0.6rem;
+            padding: 0.6rem 0.9rem;
+            font-size: 0.92rem;
+            color: #1F2937;
+            background: #FAF6F1;
+            transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
         }
-        .form-control:focus, .form-select:focus {
-            border-color: #003f5c;
-            box-shadow: 0 0 0 0.2rem rgba(0,63,92,0.1);
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #9B1B30;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
+            outline: none;
+        }
+        .form-control::placeholder {
+            color: #B8B0A8;
         }
 
         textarea.form-control {
             resize: vertical;
-            min-height: 200px;
-            font-family: 'Segoe UI', monospace;
+            min-height: 220px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.88rem;
             line-height: 1.6;
         }
 
-        .btn-primary {
-            background-color: #003f5c;
+        .form-hint {
+            background: linear-gradient(135deg, #FDF3F0 0%, #FBF0EA 100%);
+            border: 1px solid #F0DDD5;
+            border-radius: 0.6rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.82rem;
+            color: #7A1526;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .form-hint i {
+            color: #9B1B30;
+            flex-shrink: 0;
+            margin-top: 0.1rem;
+        }
+        .form-hint code {
+            background: #FDF3F0;
+            color: #7A1526;
+            padding: 0.1em 0.4em;
+            border-radius: 0.3rem;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 0.6rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .btn-primary-red {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
             border: none;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            padding: 0.6rem 1.8rem;
-            transition: background-color 0.2s;
+            border-radius: 0.6rem;
+            padding: 0.6rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            box-shadow: 0 2px 8px rgba(155, 27, 48, 0.22);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            text-decoration: none;
         }
-        .btn-primary:hover {
-            background-color: #002a3f;
+        .btn-primary-red:hover {
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(155, 27, 48, 0.30);
         }
-        .btn-secondary {
-            border-radius: 0.5rem;
-            font-weight: 500;
-            padding: 0.6rem 1.8rem;
+        .btn-primary-red:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-cancel-soft {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.6rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-cancel-soft:hover {
+            background: #FAF6F1;
+            color: #1F2937;
+        }
+
+        @media (max-width: 767.98px) {
+            .bulk-card-body { padding: 1.25rem; }
+            .action-row { flex-direction: column; }
+            .action-row .btn-primary-red,
+            .action-row .btn-cancel-soft {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    {% include 'lms/_sidebar.html' %}
+    {% include 'lms/_navbar.html' %}
 
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-header d-flex align-items-center">
-                <i class="bi bi-people-fill me-2"></i>
-                <h5 class="mb-0">Bulk Add Students</h5>
+    <div class="container-fluid mt-3 mb-4">
+        <div class="bulk-page">
+
+            <div class="bulk-header">
+                <h1 class="bulk-title">
+                    <i class="bi bi-people-fill"></i>
+                    Bulk Add Students
+                </h1>
+                <p class="bulk-subtitle">Add multiple students at once by pasting a list</p>
             </div>
-            <div class="card-body">
-                <form id="bulkAddForm" method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="class_id" class="form-label">Select Class</label>
-                        <select name="class_id" id="class_id" class="form-select" required>
-                            <option value="">-- Choose a class --</option>
-                            {% for cls in classes %}
-                                <option value="{{ cls.id }}" {% if request.GET.class_id == cls.id|stringformat:"s" %}selected{% endif %}>
-                                    {{ cls.name }} ({{ cls.semester.name }})
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="student_data" class="form-label">Student List</label>
-                        <textarea name="student_data" id="student_data" class="form-control" placeholder="John Doe, john@example.com&#10;Jane Smith, jane@example.com"></textarea>
-                        <div class="form-text mt-2">
-                            <i class="bi bi-info-circle me-1"></i> Format: <strong>Name, Email</strong> (email is optional). One student per line.
+
+            <div class="bulk-card">
+                <div class="bulk-card-body">
+                    <form id="bulkAddForm" method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="class_id" class="form-label">
+                                Select Class <span class="required">*</span>
+                            </label>
+                            <select name="class_id" id="class_id" class="form-select" required>
+                                <option value="">-- Choose a class --</option>
+                                {% for cls in classes %}
+                                    <option value="{{ cls.id }}" {% if request.GET.class_id == cls.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ cls.name }} ({{ cls.semester.name }})
+                                    </option>
+                                {% endfor %}
+                            </select>
                         </div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Add Students</button>
-                        <a href="{% url 'dashboard' %}{% if request.GET.class_id %}?class_id={{ request.GET.class_id }}{% endif %}" class="btn btn-secondary">Cancel</a>
-                    </div>
-                </form>
+
+                        <div class="mb-3">
+                            <label for="student_data" class="form-label">
+                                Student List <span class="required">*</span>
+                            </label>
+                            <textarea name="student_data" id="student_data" class="form-control"
+                                placeholder="John Doe, john@example.com&#10;Jane Smith, jane@example.com&#10;Alex Johnson"></textarea>
+                            <div class="form-hint">
+                                <i class="bi bi-info-circle-fill"></i>
+                                <div>
+                                    Format: <code>Name, Email</code> (email is optional).
+                                    One student per line. Empty lines are ignored.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="action-row">
+                            <button type="submit" class="btn-primary-red">
+                                <i class="bi bi-plus-circle-fill"></i>
+                                <span>Add Students</span>
+                            </button>
+                            <a href="{% url 'dashboard' %}{% if request.GET.class_id %}?class_id={{ request.GET.class_id }}{% endif %}" class="btn-cancel-soft">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
             </div>
+
         </div>
     </div>
 
-    <div class="bottom-clock" id="live-clock"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            document.getElementById('live-clock').innerText = now.toLocaleDateString('id-ID', options);
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
-
-        // csrfToken sudah disediakan oleh sidebar.js
-
         const form = document.getElementById('bulkAddForm');
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = form.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Adding...';
 
             const formData = new FormData(form);
             try {
@@ -151,7 +270,7 @@
                         type: 'success',
                         text: data.message
                     }));
-                    addActivityLog('Students added in bulk');
+                    if (typeof addActivityLog === 'function') addActivityLog('Students added in bulk');
                     window.location.href = "{% url 'dashboard' %}";
                 } else {
                     showNotification(data.message || 'Failed to add students.', 'danger');

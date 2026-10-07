@@ -5,43 +5,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Teacher Dashboard</title>
+
+    <!-- Favicon: fox head only -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
+    <link rel="alternate icon" href="{% static 'images/andhivie_fox.svg' %}">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <button class="btn btn-outline-light hamburger-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            <a class="navbar-brand" href="#" id="dashboardHomeLink">Classroom LMS | Andhivie</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addClassModal">Add Class</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#randomizerModal">Randomizer</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'charts' %}">Charts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'custom_logout' %}">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% include 'lms/_navbar.html' with use_modals=True %}
 
     {% include 'lms/_sidebar.html' %}
 
-    <!-- RANDOMIZER MODAL (UPGRADED) -->
+    <!-- RANDOMIZER MODAL -->
     <div class="modal fade" id="randomizerModal" tabindex="-1" aria-labelledby="randomizerModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
-                <div class="modal-header text-white" style="background: #003f5c; border-radius: 1.5rem 1.5rem 0 0;">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-shuffle me-2"></i>Classroom Randomizer</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-content andhivie-modal">
+                <div class="modal-header andhivie-modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shuffle"></i> Classroom Randomizer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body px-4 py-4">
                     <div class="d-flex justify-content-center">
@@ -61,7 +49,7 @@
                         </ul>
                     </div>
                     <div class="tab-content mt-3">
-                        <!-- ========== TEAM GENERATOR ========== -->
+                        <!-- TEAM -->
                         <div class="tab-pane fade show active" id="team" role="tabpanel">
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-5 col-12 mb-2 mb-md-0">
@@ -91,7 +79,7 @@
                             </div>
                         </div>
 
-                        <!-- ========== NAME RANDOMIZER ========== -->
+                        <!-- NAME -->
                         <div class="tab-pane fade" id="name" role="tabpanel">
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-6 col-12 mb-2 mb-md-0">
@@ -112,7 +100,7 @@
                             </div>
                         </div>
 
-                        <!-- ========== PAIR GENERATOR ========== -->
+                        <!-- PAIR -->
                         <div class="tab-pane fade" id="pair" role="tabpanel">
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-7 col-12 mb-2 mb-md-0">
@@ -149,7 +137,7 @@
                             </div>
                         </div>
 
-                        <!-- ========== SEAT RANDOMIZER ========== -->
+                        <!-- SEAT -->
                         <div class="tab-pane fade" id="seat" role="tabpanel">
                             <div class="row g-3 align-items-end mb-3">
                                 <div class="col-md-5 col-12 mb-2 mb-md-0">
@@ -185,16 +173,16 @@
                                 <div class="text-center text-muted py-4 small"><i class="bi bi-arrow-up me-1"></i> Select a class and click Random</div>
                             </div>
                         </div>
-                    </div><!-- /tab-content -->
-                </div><!-- /modal-body -->
-                <div class="modal-footer border-0 pt-0">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F5EDE5; padding: 1rem 1.5rem;">
+                    <button type="button" class="btn-modal-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL DETAIL HISTORY -->
+    <!-- HISTORY DETAIL MODAL -->
     <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -210,72 +198,161 @@
         </div>
     </div>
 
-    <!-- DASHBOARD UTAMA -->
-    <div class="container-fluid px-2 px-md-4 mt-3">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
-            <h1 class="mb-2 mb-md-0" style="font-weight:650;color:#2c3e50;font-size:clamp(1.1rem, 4vw, 1.7rem);"> Welcome, Mr. {{ user.username }}!</h1>
-            <div class="highlight-box"><span id="highlightText">🏆 Loading...</span></div>
-        </div>
-        <div class="search-filter-bar">
-            <div class="d-flex justify-content-between align-items-center flex-nowrap">
-                <h2 class="dashboard-section-title flex-shrink-0 me-3"><i class="bi bi-mortarboard-fill me-2"></i>Your Classes</h2>
-                <!-- Group kanan: Search & Select, vertikal di mobile, horizontal di desktop -->
-                <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center flex-shrink-0">
-                    <div class="search-wrapper" style="max-width:200px;">
-                        <i class="bi bi-search search-icon"></i>
-                        <input type="text" id="searchInput" class="form-control search-input" placeholder="Search student..." value="{{ search_query|default:'' }}">
-                    </div>
-                    <select id="class_select" class="form-select class-filter" style="width:auto;">
-                        <option value="">-- All Classes --</option>
-                        {% for cls in all_classes %}<option value="{{ cls.id }}" {% if selected_class_id|stringformat:"s" == cls.id|stringformat:"s" %}selected{% endif %}>{{ cls.name }} ({{ cls.semester.name }})</option>{% endfor %}
-                    </select>
+    <!-- DASHBOARD -->
+    <div class="container-fluid px-3 px-md-4 mt-4 mb-5">
+
+        <!-- WELCOME HEADER -->
+        <div class="welcome-banner">
+            <div class="welcome-text">
+                <h1 class="welcome-title">Welcome back, <span class="welcome-name">{{ user.get_full_name|default:user.username }}</span></h1>
+                <p class="welcome-sub">Here's what's happening in your classes today</p>
+            </div>
+            <div class="highlight-box" id="highlightBox" data-category="neutral">
+                <i class="bi bi-stars highlight-icon" id="highlightIcon"></i>
+                <div class="highlight-content">
+                    <span class="highlight-label" id="highlightLabel">Loading</span>
+                    <span class="highlight-value" id="highlightText">...</span>
                 </div>
             </div>
         </div>
+
+        <!-- SEARCH & FILTER BAR -->
+        <div class="search-filter-bar">
+            <div class="search-filter-inner">
+                <div class="section-title-group">
+                    <h2 class="dashboard-section-title">
+                        <i class="bi bi-mortarboard-fill"></i>
+                        Your Classes
+                    </h2>
+                </div>
+                <div class="filter-controls">
+                    <div class="search-wrapper">
+                        <i class="bi bi-search search-icon"></i>
+                        <input type="text"
+                               id="searchInput"
+                               class="form-control search-input"
+                               placeholder="Search student..."
+                               value="{{ search_query|default:'' }}">
+                    </div>
+                    <div class="class-filter-wrapper">
+                        <i class="bi bi-funnel filter-icon"></i>
+                        <select id="class_select" class="form-select class-filter">
+                            <option value="">All Classes</option>
+                            {% for cls in all_classes %}
+                            <option value="{{ cls.id }}" {% if selected_class_id|stringformat:"s" == cls.id|stringformat:"s" %}selected{% endif %}>
+                                {{ cls.name }} ({{ cls.semester.name }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD CONTENT -->
         <div id="dashboard-content">{% include 'lms/partials/_dashboard_content.html' %}</div>
     </div>
 
-    <!-- MODAL RESET CLASS -->
-    <div class="modal fade" id="resetClassModal" tabindex="-1" aria-hidden="true">
+    <!-- RESET POINTS MODAL -->
+    <div class="modal fade" id="resetPointsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg" style="border-radius:1rem;">
-                <div class="modal-header text-white" style="background-color:#dc3545;border-radius:1rem 1rem 0 0;">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Reset Class Data</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-content andhivie-modal">
+                <div class="modal-header andhivie-modal-header">
+                    <h5 class="modal-title" id="resetPointsModalTitle">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset Behavior Points
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4">
-                    <p class="mb-3">You are about to <strong>delete all data</strong> in this class:</p>
-                    <ul class="list-unstyled ms-3">
-                        <li class="mb-1"><i class="bi bi-dot"></i> All attendance records</li>
-                        <li class="mb-1"><i class="bi bi-dot"></i> Behavior points</li>
-                        <li class="mb-1"><i class="bi bi-dot"></i> Assessments and scores</li>
-                        <li class="mb-1"><i class="bi bi-dot"></i> Student feedback</li>
-                    </ul>
-                    <p class="text-danger fw-semibold small mt-3 mb-2"><i class="bi bi-info-circle me-1"></i> This action cannot be undone.</p>
-                    <div class="form-check mt-3"><input class="form-check-input" type="checkbox" id="deleteStudentsCheckbox"><label class="form-check-label" for="deleteStudentsCheckbox">Also delete all students permanently</label></div>
+                <div class="modal-body">
+                    <p id="resetPointsModalMessage" class="mb-3" style="font-size: 0.92rem;"></p>
+                    <div class="alert" style="background: #FFF7ED; border: 1px solid #FDE68A; border-left: 3px solid #F59E0B; border-radius: 0.6rem; font-size: 0.85rem; color: #92400E;">
+                        <i class="bi bi-info-circle-fill me-1" style="color: #D97706;"></i>
+                        <strong>Full reset</strong> will delete earned bonus. <strong>Partial</strong> keeps earned bonus.
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="fullResetCheckbox">
+                        <label class="form-check-label" for="fullResetCheckbox" style="font-size: 0.9rem;">
+                            <strong>Full reset</strong> &mdash; also delete earned bonus and conversion history
+                        </label>
+                    </div>
+                    <div class="modal-footer-custom">
+                        <button type="button" class="btn-modal-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </button>
+                        <button type="button" class="btn-modal-primary" id="confirmResetPointsBtn">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                    </div>
                 </div>
-                <div class="modal-footer border-0 pt-0"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1"></i> Cancel</button><button type="button" class="btn btn-danger px-4" id="confirmResetClassBtn"><i class="bi bi-trash me-1"></i> Reset Now</button></div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL ADD CLASS -->
+        <!-- RESET CLASS MODAL -->
+    <div class="modal fade" id="resetClassModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content andhivie-modal">
+                <div class="modal-header andhivie-modal-header" style="background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Reset Class Data
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3" style="font-size: 0.92rem;">You are about to <strong>delete all data</strong> in this class:</p>
+                    <ul class="list-unstyled ms-2 mb-3">
+                        <li class="mb-2"><i class="bi bi-dot" style="color:#9B1B30;"></i> All attendance records</li>
+                        <li class="mb-2"><i class="bi bi-dot" style="color:#9B1B30;"></i> Behavior points</li>
+                        <li class="mb-2"><i class="bi bi-dot" style="color:#9B1B30;"></i> Assessments and scores</li>
+                        <li class="mb-2"><i class="bi bi-dot" style="color:#9B1B30;"></i> Student feedback</li>
+                    </ul>
+                    <div class="alert alert-danger py-2 px-3 mb-0" style="border-radius: 0.6rem; font-size: 0.85rem; border-left: 3px solid #DC2626;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        This action cannot be undone.
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="deleteStudentsCheckbox">
+                        <label class="form-check-label" for="deleteStudentsCheckbox" style="font-size: 0.9rem;">
+                            Also delete all students permanently
+                        </label>
+                    </div>
+                    <div class="modal-footer-custom">
+                        <button type="button" class="btn-modal-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </button>
+                        <button type="button" class="btn-modal-primary" id="confirmResetClassBtn" style="background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);">
+                            <i class="bi bi-trash-fill"></i> Reset Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD CLASS MODAL -->
     <div class="modal fade" id="addClassModal" tabindex="-1" aria-labelledby="addClassModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header text-white" style="background-color: #003f5c;">
-                    <h5 class="modal-title" id="addClassModalLabel"><i class="bi bi-plus-circle me-2"></i>Add New Class</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-content andhivie-modal">
+                <div class="modal-header andhivie-modal-header">
+                    <h5 class="modal-title" id="addClassModalLabel">
+                        <i class="bi bi-plus-circle-fill"></i> Add New Class
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="addClassForm">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label for="className" class="form-label">Class Name *</label>
-                            <input type="text" class="form-control" id="className" name="name" required>
+                            <label for="className" class="form-label">
+                                Class Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="className" name="name"
+                                   placeholder="e.g., English 7A" required>
                         </div>
                         <div class="mb-3">
-                            <label for="semesterSelect" class="form-label">Semester *</label>
+                            <label for="semesterSelect" class="form-label">
+                                Semester <span class="text-danger">*</span>
+                            </label>
                             <select class="form-select" id="semesterSelect" name="semester" required>
                                 <option value="">-- Select Semester --</option>
                                 {% for sem in semesters %}
@@ -285,11 +362,14 @@
                         </div>
                         <div class="mb-3">
                             <label for="scheduleInput" class="form-label">Schedule (optional)</label>
-                            <input type="text" class="form-control" id="scheduleInput" name="schedule" placeholder="e.g., Mon/Wed 9:00-10:30">
+                            <input type="text" class="form-control" id="scheduleInput" name="schedule"
+                                   placeholder="e.g., Mon/Wed 9:00-10:30">
                         </div>
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Create Class</button>
+                        <div class="modal-footer-custom">
+                            <button type="button" class="btn-modal-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn-modal-primary">
+                                <i class="bi bi-check-lg me-1"></i> Create Class
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -302,50 +382,25 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        // Variabel dari Django yang dibutuhkan oleh dashboard.js
         const DASHBOARD_URL = '{% url "dashboard" %}';
         const ADD_CLASS_URL = '{% url "add_class" %}';
-        const highlights = [
-            {% if highest_positive %}
-                "🌟 Most Positive Points: {{ highest_positive.student.name|escapejs }} (+{{ highest_positive.total_positive }})",
-            {% else %}
-                "🌟 Most Positive Points: -",
-            {% endif %}
-            {% if highest_negative %}
-                "⚠️ Most Negative Points: {{ highest_negative.student.name|escapejs }} (-{{ highest_negative.total_negative }})",
-            {% else %}
-                "⚠️ Most Negative Points: -",
-            {% endif %}
-            {% if highest_final and highest_final.final_score is not None %}
-                "🎯 Highest Final Score: {{ highest_final.student.name|escapejs }} ({{ highest_final.final_score }})",
-            {% else %}
-                "🎯 Highest Final Score: -",
-            {% endif %}
-        ];
-
-        // ADD CLASS AJAX SUBMISSION HANDLER
         document.addEventListener('DOMContentLoaded', function () {
             const addClassForm = document.getElementById('addClassForm');
-
             if (addClassForm) {
                 addClassForm.addEventListener('submit', function (e) {
-                    e.preventDefault(); // Stop normal form submit redirect
-
+                    e.preventDefault();
                     const formData = new FormData(addClassForm);
                     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
                     fetch(ADD_CLASS_URL, {
                         method: 'POST',
                         headers: {
                             'X-CSRFToken': csrfToken,
-                            'X-Requested-With': 'XMLHttpRequest' // Tells Django view to return JsonResponse
+                            'X-Requested-With': 'XMLHttpRequest'
                         },
                         body: formData
                     })
                     .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network error');
-                        }
+                        if (!response.ok) throw new Error('Network error');
                         return response.json();
                     })
                     .then(data => {

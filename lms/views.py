@@ -18,8 +18,14 @@ from .models import Semester
 from lms.services.dashboard_service import (
     get_behavior_summary,
     get_attendance_summary,
+)
+
+from lms.services.behavior_service import (
+    calculate_behavior_status,
     calculate_final_score,
 )
+
+from lms.constants import STANDARD_ASSESSMENT_TYPES, DAILY_TEST_TYPE
 
 from .models import (
     Class, UserProfile, Enrollment, Student, AttendanceSession, AttendanceRecord,
@@ -37,6 +43,7 @@ def custom_logout(request):
 @login_required
 def dashboard(request):
     start_time = time.perf_counter()
+
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
@@ -45,16 +52,10 @@ def dashboard(request):
     if profile.role != 'teacher':
         return HttpResponse("Access restricted to teachers.")
 
-    is_partial = request.GET.get('partial') == 'true'
     url_class_id = request.GET.get('class_id')
-
     selected_class_id = None
     if url_class_id and url_class_id.isdigit():
         selected_class_id = int(url_class_id)
-    elif url_class_id == '':
-        selected_class_id = None
-    else:
-        selected_class_id = None
 
     all_classes = Class.objects.filter(teacher=request.user)
     if selected_class_id:
@@ -72,45 +73,22 @@ def dashboard(request):
 
     class_data = []
     all_students_data = []
+
     for cls in classes:
-        enrollments = Enrollment.objects.filter(
-            class_obj=cls, is_active=True
-        ).select_related('student').order_by('student__name')
+        enrollments = (
+            Enrollment.objects
+            .filter(class_obj=cls, is_active=True)
+            .select_related('student')
+            .order_by('student__name')
+        )
 
         student_ids = [e.student_id for e in enrollments]
         if not student_ids:
             class_data.append({'class': cls, 'students': []})
             continue
 
-        # Behavior
-        behavior_dict = get_behavior_summary(student_ids)
-
-        # Attendance
+        # Attendance summary (still uses legacy helper — behavior is now via service)
         attendance_dict = get_attendance_summary(student_ids, cls)
-
-        # Academic
-        assessments_in_class = Assessment.objects.filter(class_obj=cls)
-
-        total_max_points = (
-            assessments_in_class.aggregate(total=Sum('max_points'))['total']
-            or 0
-            )
-
-        scores_in_class = Score.objects.filter(
-            student_id__in=student_ids,
-            assessment__in=assessments_in_class
-        ).values('student_id').annotate(total_earned=Sum('points_earned'))
-
-        student_total_points = {item['student_id']: item['total_earned'] for item in scores_in_class}
-
-        academic_dict = {}
-        for sid in student_ids:
-            earned = student_total_points.get(sid, 0)
-            if total_max_points > 0:
-                avg = (earned / total_max_points) * 100
-            else:
-                avg = 0.0
-            academic_dict[sid] = avg
 
         students_data = []
         for enrollment in enrollments:
@@ -120,50 +98,43 @@ def dashboard(request):
                 continue
 
             sid = student.id
-            beh = behavior_dict.get(sid, {'total_positive': 0, 'total_negative': 0, 'net_points': 0})
-            total_positive = beh['total_positive']
-            total_negative = beh['total_negative']
-            net_points = beh['net_points']
-            has_behavior = (total_positive + total_negative) > 0
 
-            att_data = attendance_dict.get(sid, {'total_sessions': 0, 'present_count': 0, 'percentage': 0.0})
+            behavior_status = calculate_behavior_status(student, cls)
+            score_data = calculate_final_score(student, cls)
+
+            att_data = attendance_dict.get(
+                sid,
+                {'total_sessions': 0, 'present_count': 0, 'percentage': 0.0}
+            )
             total_sessions = att_data['total_sessions']
             present_count = att_data['present_count']
-            attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
+            attendance_summary = (
+                f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
+            )
             attendance_percentage = att_data['percentage']
-            has_attendance = total_sessions > 0
-
-            academic_avg = academic_dict.get(sid, 0.0)
-            has_academic = total_max_points > 0
-
-            if has_academic or has_attendance or has_behavior:
-                pos_cap = cls.positive_behavior_cap or 1
-                neg_cap = cls.negative_behavior_cap or 1
-                positive_component = min((total_positive / pos_cap) * 100, 100) if has_behavior else 0
-                negative_component = max(100 - (abs(total_negative) / neg_cap) * 100, 0) if has_behavior else 100
-                final_score = (
-                    academic_avg * 0.6
-                    + attendance_percentage * 0.15
-                    + positive_component * 0.15
-                    + negative_component * 0.1
-                )
-                final_score = min(round(final_score, 1), 100.0)
-            else:
-                final_score = None
 
             students_data.append({
                 'student': student,
                 'attendance_summary': attendance_summary,
                 'attendance_percentage': round(attendance_percentage, 1),
-                'total_positive': total_positive,
-                'total_negative': total_negative,
-                'net_points': net_points,
-                'academic_avg': round(academic_avg, 1),
-                'final_score': final_score,
+                # Behavior (from service)
+                'total_positive': behavior_status['total_positive'],
+                'total_negative': behavior_status['total_negative'],
+                'net_points': behavior_status['net_points'],
+                'available_points': behavior_status['available_points'],
+                'converted_points': behavior_status['converted_points'],
+                'bonus_earned': behavior_status['bonus_earned'],
+                'daily_test_ready': behavior_status['daily_test_ready'],
+                'daily_test_status': behavior_status['daily_test_status'],
+                'points_needed_for_test': behavior_status['points_needed_for_test'],
+                'can_convert': behavior_status['can_convert'],
+                'conversion_error': behavior_status['conversion_error'],
+                # Academic (pure)
+                'academic_avg': score_data['academic_average'],
+                'final_score': score_data['final_score'] if score_data['has_assessments'] else None,
             })
 
         class_data.append({'class': cls, 'students': students_data})
-
         all_students_data.extend(students_data)
 
     highest_positive = None
@@ -191,11 +162,11 @@ def dashboard(request):
 
     if request.GET.get('partial') == 'true':
         return render(request, 'lms/partials/_dashboard_content.html', context)
-        elapsed = time.perf_counter() - start_time
-        print(f"Dashboard loaded in {elapsed:.3f} seconds")
+
+    elapsed = time.perf_counter() - start_time
+    print(f"Dashboard loaded in {elapsed:.3f} seconds")
 
     return render(request, 'lms/teacher_dashboard.html', context)
-
 
 # ---------- Bulk Add Students ----------
 @login_required
@@ -436,6 +407,16 @@ def add_assessment(request, class_id):
             messages.error(request, msg)
             return redirect('add_assessment', class_id=class_id)
 
+        if assessment_type_name not in STANDARD_ASSESSMENT_TYPES:
+            msg = (
+                f"Invalid assessment type '{assessment_type_name}'. "
+                f"Must be one of: {', '.join(STANDARD_ASSESSMENT_TYPES)}."
+            )
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('add_assessment', class_id=class_id)
+
         assessment_type, _ = AssessmentType.objects.get_or_create(
             name=assessment_type_name,
             class_obj=class_obj
@@ -521,7 +502,7 @@ def enter_scores(request, assessment_id):
 
             if points_str and points_str.strip():
                 try:
-                    points = float(points_str.replace(',', '.'))  # dukung koma sebagai desimal
+                    points = float(points_str.replace(',', '.'))
                     points = max(0, min(points, assessment.max_points))
 
                     Score.objects.update_or_create(
@@ -534,21 +515,20 @@ def enter_scores(request, assessment_id):
                     )
                     saved_count += 1
                 except (ValueError, TypeError):
-                    errors.append(f"Nilai untuk {student.name} tidak valid: '{points_str}'")
-            # jika kosong, biarkan saja (tidak mengubah data yang sudah ada)
+                    errors.append(f"Invalid score for {student.name}: '{points_str}'")
 
-        # Susun pesan untuk pengguna
+        # Build user-facing message
         if saved_count > 0:
-            msg = f"{saved_count}  score(s) has been saved for '{assessment.name}'."
+            msg = f"{saved_count} score(s) saved for '{assessment.name}'."
             if errors:
-                msg += " Namun beberapa nilai gagal: " + "; ".join(errors[:3])  # maks 3 error
+                msg += " However, some scores failed: " + "; ".join(errors[:3])
                 if len(errors) > 3:
-                    msg += f" (dan {len(errors)-3} lainnya)"
+                    msg += f" (and {len(errors) - 3} more)"
         else:
             if errors:
-                msg = f"❌ Tidak ada skor yang tersimpan. Kesalahan: {'; '.join(errors[:3])}"
+                msg = f"❌ No scores were saved. Errors: {'; '.join(errors[:3])}"
             else:
-                msg = "Tidak ada skor diisi, tidak ada perubahan."
+                msg = "No scores entered. No changes made."
 
         if is_ajax:
             return JsonResponse({'status': 'ok' if saved_count > 0 else 'warning', 'message': msg})
@@ -621,6 +601,16 @@ def edit_assessment(request, assessment_id):
 
         if not all([name, date_str, max_points, assessment_type_name]):
             msg = "All required fields must be filled."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('edit_assessment', assessment_id=assessment_id)
+
+        if assessment_type_name not in STANDARD_ASSESSMENT_TYPES:
+            msg = (
+                f"Invalid assessment type '{assessment_type_name}'. "
+                f"Must be one of: {', '.join(STANDARD_ASSESSMENT_TYPES)}."
+            )
             if is_ajax:
                 return JsonResponse({'status': 'error', 'message': msg})
             messages.error(request, msg)
@@ -825,6 +815,96 @@ def student_averages(request, class_id):
 # ---------- Behavior ----------
 @login_required
 def add_behavior(request, student_id, class_id):
+    """
+    Add a behavior point entry for a student in a class.
+
+    Accepts POST parameter 'points' with one of: +1, +2, +3, -1, -2, -3.
+    Uses the centralized behavior_service for all calculations.
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
+
+    # --- Teacher check ---
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Only teachers can access.'}, status=403)
+
+    # --- Get class & student ---
+    try:
+        class_obj = Class.objects.get(id=class_id, teacher=request.user)
+        student = Student.objects.get(id=student_id, is_active=True)
+    except (Class.DoesNotExist, Student.DoesNotExist):
+        return JsonResponse({'status': 'error', 'message': 'Class or student not found.'}, status=404)
+
+    # --- Validate points ---
+    points_str = request.POST.get('points')
+    if not points_str:
+        return JsonResponse({'status': 'error', 'message': 'Points not specified.'}, status=400)
+
+    try:
+        points = int(points_str)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid points value.'}, status=400)
+
+    allowed_values = {1, 2, 3, -1, -2, -3}
+    if points not in allowed_values:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Invalid points value {points}. Allowed: +1, +2, +3, -1, -2, -3.'
+        }, status=400)
+
+    # --- Create the entry ---
+    category, _ = BehaviorCategory.objects.get_or_create(
+        name='Quick Point',
+        defaults={'default_points': points, 'is_positive': points > 0}
+    )
+
+    BehaviorEntry.objects.create(
+        student=student,
+        category=category,
+        points=points,
+        note=f"Quick {'positive' if points > 0 else 'negative'} point from dashboard",
+        recorded_by=request.user,
+        semester=class_obj.semester,
+    )
+
+    # --- Recalculate via service ---
+    status = calculate_behavior_status(student, class_obj)
+    score = calculate_final_score(student, class_obj)
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': f'Added {points:+d} point(s) to {student.name}.',
+        'new_final_score': score['final_score'],
+        'total_positive': status['total_positive'],
+        'total_negative': status['total_negative'],
+        'net_points': status['net_points'],
+        'available_points': status['available_points'],
+        'bonus_earned': status['bonus_earned'],
+        'conversions_count': status['conversions_count'],
+        'can_convert': status['can_convert'],
+        'conversion_error': status['conversion_error'],
+        'daily_test_status': status['daily_test_status'],
+        'daily_test_ready': status['daily_test_ready'],
+        'points_needed_for_test': status['points_needed_for_test'],
+    })
+
+@login_required
+def convert_bonus(request, student_id, class_id):
+    """
+    Convert a student's available behavior points into academic bonus.
+    Only allowed when the class configuration permits it.
+    """
+    from lms.services.behavior_service import convert_behavior_bonus
+
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
@@ -841,87 +921,29 @@ def add_behavior(request, student_id, class_id):
     except (Class.DoesNotExist, Student.DoesNotExist):
         return JsonResponse({'status': 'error', 'message': 'Class or student not found.'}, status=404)
 
-    points_str = request.POST.get('points')
-    if not points_str:
-        return JsonResponse({'status': 'error', 'message': 'Points not specified.'}, status=400)
-    try:
-        points = int(points_str)
-    except ValueError:
-        return JsonResponse({'status': 'error', 'message': 'Invalid points value.'}, status=400)
+    result = convert_behavior_bonus(student, class_obj, user=request.user)
 
-    category, _ = BehaviorCategory.objects.get_or_create(
-        name='Quick Point', defaults={'default_points': points, 'is_positive': points > 0}
-    )
-    BehaviorEntry.objects.create(
-        student=student, category=category, points=points,
-        note=f"Quick {'positive' if points > 0 else 'negative'} point from dashboard",
-        recorded_by=request.user
-    )
+    if not result['success']:
+        return JsonResponse({'status': 'error', 'message': result['message']})
 
-    # Recalculate final score dengan metode baru (semua asesmen = 0 jika kosong)
-    attendance_records = AttendanceRecord.objects.filter(student=student, session__class_obj=class_obj)
-    total_sessions = attendance_records.count()
-    present_count = attendance_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
-    attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
-
-    behavior_entries = BehaviorEntry.objects.filter(student=student)
-    total_positive = behavior_entries.filter(points__gt=0).aggregate(total=models.Sum('points'))['total'] or 0
-    total_negative = abs(behavior_entries.filter(points__lt=0).aggregate(total=models.Sum('points'))['total'] or 0)
-    net_points = total_positive - total_negative
-
-    # Academic baru: total semua asesmen di kelas
-    assessments_in_class = Assessment.objects.filter(class_obj=class_obj)
-    total_max_points = assessments_in_class.aggregate(total=Sum('max_points'))['total'] or 0
-    total_earned = Score.objects.filter(student=student, assessment__in=assessments_in_class).aggregate(
-        total=Sum('points_earned'))['total'] or 0
-    if total_max_points > 0:
-        academic_avg = (total_earned / total_max_points) * 100
-    else:
-        academic_avg = 0.0
-    has_academic = total_max_points > 0
-
-    pos_cap = class_obj.positive_behavior_cap or 1
-    neg_cap = class_obj.negative_behavior_cap or 1
-    positive_component = min((total_positive / pos_cap) * 100, 100)
-    negative_component = max(100 - (abs(total_negative) / neg_cap) * 100, 0)
-
-    has_attendance = total_sessions > 0
-    has_behavior = behavior_entries.exists()
-    if has_academic or has_attendance or has_behavior:
-        final_score = calculate_final_score(
-            academic_avg=academic_avg,
-            attendance_percentage=attendance_percentage,
-            total_positive=total_positive,
-            total_negative=total_negative,
-            cls=class_obj,
-            has_behavior=has_behavior,
-        )
-    else:
-        final_score = None
-
-    new_summary = (
-        '<div class="d-flex align-items-center justify-content-center">'
-        '<span class="text-nowrap" style="width: 85px; display: inline-block; text-align: left;">'
-        f'<span class="text-success fw-semibold">+{total_positive}</span> '
-        '<span class="text-muted">/</span> '
-        f'<span class="text-danger fw-semibold">-{total_negative}</span>'
-        '</span>'
-        '<span class="border-start ps-2 ms-1 text-nowrap">'
-        f'<strong>Net: {net_points}</strong>'
-        '</span>'
-        '</div>'
-    )
-
+    status = result['status']
     return JsonResponse({
-        'status': 'ok', 'message': f'Added {points} points to {student.name}.',
-        'new_summary': new_summary, 'new_final_score': final_score,
-        'total_positive': total_positive, 'total_negative': total_negative, 'net_points': net_points,
+        'status': 'ok',
+        'message': result['message'],
+        'available_points': status['available_points'],
+        'bonus_earned': status['bonus_earned'],
+        'converted_points': status['converted_points'],
     })
-
 
 # ---------- Reset Points ----------
 @login_required
 def reset_student_points(request, student_id, class_id):
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+        reset_student_behavior,
+    )
+
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
@@ -938,60 +960,28 @@ def reset_student_points(request, student_id, class_id):
     except (Class.DoesNotExist, Student.DoesNotExist):
         return JsonResponse({'status': 'error', 'message': 'Class or student not found.'}, status=404)
 
-    BehaviorEntry.objects.filter(student=student).delete()
+    full_reset = request.POST.get('full_reset', 'false').lower() == 'true'
 
-    attendance_records = AttendanceRecord.objects.filter(student=student, session__class_obj=class_obj)
-    total_sessions = attendance_records.count()
-    present_count = attendance_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
-    attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
+    result = reset_student_behavior(student, class_obj, full_reset=full_reset)
 
-    # Academic baru
-    assessments_in_class = Assessment.objects.filter(class_obj=class_obj)
-    total_max_points = assessments_in_class.aggregate(total=Sum('max_points'))['total'] or 0
-    total_earned = Score.objects.filter(student=student, assessment__in=assessments_in_class).aggregate(
-        total=Sum('points_earned'))['total'] or 0
-    if total_max_points > 0:
-        academic_avg = (total_earned / total_max_points) * 100
-    else:
-        academic_avg = 0.0
-    has_academic = total_max_points > 0
+    status = calculate_behavior_status(student, class_obj)
+    score = calculate_final_score(student, class_obj)
 
-    pos_cap = class_obj.positive_behavior_cap or 1
-    neg_cap = class_obj.negative_behavior_cap or 1
-    positive_component = 0
-    negative_component = 100
-
-    has_attendance = total_sessions > 0
-    if has_academic or has_attendance:
-        final_score = (
-            academic_avg * 0.6 + attendance_percentage * 0.15
-            + positive_component * 0.15 + negative_component * 0.1
-        )
-        final_score = min(round(final_score, 1), 100.0)
-    else:
-        final_score = None
-
-    new_summary = (
-        '<div class="d-flex align-items-center justify-content-center">'
-        '<span class="text-nowrap" style="width: 85px; display: inline-block; text-align: left;">'
-        '<span class="text-success fw-semibold">+0</span> '
-        '<span class="text-muted">/</span> '
-        '<span class="text-danger fw-semibold">-0</span>'
-        '</span>'
-        '<span class="border-start ps-2 ms-1 text-nowrap">'
-        '<strong>Net: 0</strong>'
-        '</span>'
-        '</div>'
-    )
-
+    label = "Full reset" if full_reset else "Points reset"
     return JsonResponse({
-        'status': 'ok', 'message': f'Behavior points for {student.name} have been reset.',
-        'new_summary': new_summary, 'new_final_score': final_score,
+        'status': 'ok',
+        'message': f'{label} applied to {student.name}.',
+        'total_positive': status['total_positive'],
+        'total_negative': status['total_negative'],
+        'available_points': status['available_points'],
+        'bonus_earned': status['bonus_earned'],
+        'new_final_score': score['final_score'],
     })
-
 
 @login_required
 def reset_class_points(request, class_id):
+    from lms.services.behavior_service import reset_class_behavior
+
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
@@ -1007,11 +997,94 @@ def reset_class_points(request, class_id):
     except Class.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Class not found.'}, status=404)
 
-    students = Enrollment.objects.filter(class_obj=class_obj, is_active=True).values_list('student', flat=True)
-    BehaviorEntry.objects.filter(student__in=students).delete()
+    full_reset = request.POST.get('full_reset', 'false').lower() == 'true'
 
-    return JsonResponse({'status': 'ok', 'message': f"Behavior points for all students in {class_obj.name} have been reset."})
+    result = reset_class_behavior(class_obj, full_reset=full_reset)
 
+    label = "Full reset" if full_reset else "Points reset"
+    return JsonResponse({
+        'status': 'ok',
+        'message': f'{label} applied to {class_obj.name}.',
+    })
+
+@login_required
+def class_settings(request, class_id):
+    """
+    Allow the teacher to configure behavior settings for a specific class.
+    Fields: min_points_for_daily_test, points_per_conversion,
+            bonus_per_conversion, max_bonus.
+    """
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    try:
+        class_obj = Class.objects.get(id=class_id, teacher=request.user)
+    except Class.DoesNotExist:
+        messages.error(request, "Class not found.")
+        return redirect('dashboard')
+
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+    if request.method == 'POST':
+        try:
+            min_points = int(request.POST.get('min_points_for_daily_test', '0') or 0)
+            points_per_conv = int(request.POST.get('points_per_conversion', '1') or 1)
+            bonus_per_conv = int(request.POST.get('bonus_per_conversion', '1') or 1)
+            max_bonus = int(request.POST.get('max_bonus', '0') or 0)
+        except (ValueError, TypeError):
+            msg = "All fields must be valid integers."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('class_settings', class_id=class_id)
+
+        if min_points < 0:
+            msg = "Minimum points for Daily Test cannot be negative."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('class_settings', class_id=class_id)
+        if points_per_conv < 1:
+            msg = "Points per conversion must be at least 1."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('class_settings', class_id=class_id)
+        if bonus_per_conv < 1:
+            msg = "Bonus per conversion must be at least 1."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('class_settings', class_id=class_id)
+        if max_bonus < 0:
+            msg = "Maximum bonus cannot be negative."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('class_settings', class_id=class_id)
+
+        class_obj.min_points_for_daily_test = min_points
+        class_obj.points_per_conversion = points_per_conv
+        class_obj.bonus_per_conversion = bonus_per_conv
+        class_obj.max_bonus = max_bonus
+        class_obj.save()
+
+        msg = f"Settings for {class_obj.name} updated successfully."
+        if is_ajax:
+            return JsonResponse({'status': 'ok', 'message': msg})
+        messages.success(request, msg)
+        return redirect('class_settings', class_id=class_id)
+
+    context = {
+        'class_obj': class_obj,
+    }
+    return render(request, 'lms/class_settings.html', context)
 
 # ---------- Class Management ----------
 @login_required
@@ -1148,162 +1221,67 @@ def charts(request):
         request.session.pop('selected_class_id', None)
         return redirect('charts')
 
+    # ---------- Per-class averages ----------
     chart_class_names = []
     chart_class_avg_scores = []
-    chart_components = {'academic': [], 'attendance': [], 'positive': [], 'negative': []}
+    chart_components = {'academic': [], 'bonus': []}
 
     for cls in all_classes:
         enrollments = Enrollment.objects.filter(class_obj=cls, is_active=True).select_related('student')
-        student_ids = [e.student_id for e in enrollments]
-        if not student_ids:
+        students = [e.student for e in enrollments]
+
+        if not students:
             chart_class_names.append(cls.name)
             chart_class_avg_scores.append(0)
             for k in chart_components:
                 chart_components[k].append(0)
             continue
 
-        # Behavior
-        beh_agg = BehaviorEntry.objects.filter(student_id__in=student_ids).values('student_id').annotate(
-            total_positive=Coalesce(Sum('points', filter=Q(points__gt=0)), Value(0)),
-            total_negative=Coalesce(Sum('points', filter=Q(points__lt=0)), Value(0))
-        )
-        beh_dict = {}
-        for item in beh_agg:
-            beh_dict[item['student_id']] = {'pos': item['total_positive'], 'neg': abs(item['total_negative'])}
+        total_final = 0
+        total_academic = 0
+        total_bonus = 0
+        count = 0
 
-        # Attendance
-        att_agg = AttendanceRecord.objects.filter(
-            student_id__in=student_ids, session__class_obj=cls
-        ).values('student_id').annotate(
-            total_sessions=Count('id'),
-            present_count=Count('id', filter=Q(status__in=['present', 'late', 'excused', 'sick']))
-        )
-        att_dict = {}
-        for item in att_agg:
-            total = item['total_sessions']
-            present = item['present_count']
-            att_dict[item['student_id']] = (present / total * 100) if total > 0 else 0.0
-
-        # Academic baru (semua asesmen, tidak dikerjakan = 0)
-        assessments_in_cls = Assessment.objects.filter(class_obj=cls)
-        total_max = assessments_in_cls.aggregate(total=Sum('max_points'))['total'] or 0
-        scores_for_cls = Score.objects.filter(
-            student_id__in=student_ids,
-            assessment__in=assessments_in_cls
-        ).values('student_id').annotate(earned=Sum('points_earned'))
-
-        acad_dict = {}
-        for item in scores_for_cls:
-            if total_max > 0:
-                acad_dict[item['student_id']] = (item['earned'] / total_max) * 100
-            else:
-                acad_dict[item['student_id']] = 0.0
-        for sid in student_ids:
-            if sid not in acad_dict:
-                acad_dict[sid] = 0.0
-
-        # Komponen nilai akhir
-        total_final = total_academic = total_attendance = total_positive_comp = total_negative_comp = count = 0
-        for enrollment in enrollments:
-            sid = enrollment.student_id
-            beh = beh_dict.get(sid, {'pos': 0, 'neg': 0})
-            total_pos, total_neg = beh['pos'], beh['neg']
-            att_pct = att_dict.get(sid, 0.0)
-            acad_avg = acad_dict.get(sid, 0.0)
-
-            pos_cap = cls.positive_behavior_cap or 1
-            neg_cap = cls.negative_behavior_cap or 1
-            pos_comp = min((total_pos / pos_cap) * 100, 100)
-            neg_comp = max(100 - (abs(total_neg) / neg_cap) * 100, 0)
-
-            final = acad_avg * 0.6 + att_pct * 0.15 + pos_comp * 0.15 + neg_comp * 0.1
-            final = min(round(final, 1), 100.0)
-
-            total_final += final
-            total_academic += acad_avg
-            total_attendance += att_pct
-            total_positive_comp += pos_comp
-            total_negative_comp += neg_comp
+        for student in students:
+            score_data = calculate_final_score(student, cls)
+            total_final += score_data['final_score']
+            total_academic += score_data['academic_average']
+            total_bonus += score_data['bonus']
             count += 1
 
         if count > 0:
             chart_class_names.append(cls.name)
             chart_class_avg_scores.append(round(total_final / count, 1))
             chart_components['academic'].append(round(total_academic / count, 1))
-            chart_components['attendance'].append(round(total_attendance / count, 1))
-            chart_components['positive'].append(round(total_positive_comp / count, 1))
-            chart_components['negative'].append(round(total_negative_comp / count, 1))
+            chart_components['bonus'].append(round(total_bonus / count, 1))
         else:
             chart_class_names.append(cls.name)
             chart_class_avg_scores.append(0)
             for k in chart_components:
                 chart_components[k].append(0)
 
-    # Histogram (dengan metode baru)
+    # ---------- Histogram (per selected class) ----------
     score_ranges = ['<60', '60-70', '70-80', '80-90', '≥90']
     range_counts = [0, 0, 0, 0, 0]
+
     if selected_class_id:
         try:
             cls = Class.objects.get(id=selected_class_id, teacher=request.user)
             enrollments = Enrollment.objects.filter(class_obj=cls, is_active=True).select_related('student')
-            student_ids = [e.student_id for e in enrollments]
-            if student_ids:
-                # Behavior
-                beh_agg = BehaviorEntry.objects.filter(student_id__in=student_ids).values('student_id').annotate(
-                    total_positive=Coalesce(Sum('points', filter=Q(points__gt=0)), Value(0)),
-                    total_negative=Coalesce(Sum('points', filter=Q(points__lt=0)), Value(0))
-                )
-                beh_dict = {item['student_id']: (item['total_positive'], abs(item['total_negative'])) for item in beh_agg}
 
-                # Attendance
-                att_agg = AttendanceRecord.objects.filter(
-                    student_id__in=student_ids, session__class_obj=cls
-                ).values('student_id').annotate(
-                    total_sessions=Count('id'),
-                    present_count=Count('id', filter=Q(status__in=['present', 'late', 'excused', 'sick']))
-                )
-                att_dict = {}
-                for item in att_agg:
-                    total = item['total_sessions']
-                    present = item['present_count']
-                    att_dict[item['student_id']] = (present / total * 100) if total > 0 else 0.0
-
-                # Academic baru
-                assessments_in_cls = Assessment.objects.filter(class_obj=cls)
-                total_max = assessments_in_cls.aggregate(total=Sum('max_points'))['total'] or 0
-                scores_for_cls = Score.objects.filter(
-                    student_id__in=student_ids,
-                    assessment__in=assessments_in_cls
-                ).values('student_id').annotate(earned=Sum('points_earned'))
-                acad_dict = {}
-                for item in scores_for_cls:
-                    if total_max > 0:
-                        acad_dict[item['student_id']] = (item['earned'] / total_max) * 100
-                    else:
-                        acad_dict[item['student_id']] = 0.0
-                for sid in student_ids:
-                    if sid not in acad_dict:
-                        acad_dict[sid] = 0.0
-
-                for enrollment in enrollments:
-                    sid = enrollment.student_id
-                    pos, neg = beh_dict.get(sid, (0, 0))
-                    att_pct = att_dict.get(sid, 0.0)
-                    acad_avg = acad_dict.get(sid, 0.0)
-
-                    pos_cap = cls.positive_behavior_cap or 1
-                    neg_cap = cls.negative_behavior_cap or 1
-                    pos_comp = min((pos / pos_cap) * 100, 100)
-                    neg_comp = max(100 - (abs(neg) / neg_cap) * 100, 0)
-
-                    final = acad_avg * 0.6 + att_pct * 0.15 + pos_comp * 0.15 + neg_comp * 0.1
-                    final = min(round(final, 1), 100.0)
-
-                    if final < 60: range_counts[0] += 1
-                    elif final < 70: range_counts[1] += 1
-                    elif final < 80: range_counts[2] += 1
-                    elif final < 90: range_counts[3] += 1
-                    else: range_counts[4] += 1
+            for enrollment in enrollments:
+                score_data = calculate_final_score(enrollment.student, cls)
+                final = score_data['final_score']
+                if final < 60:
+                    range_counts[0] += 1
+                elif final < 70:
+                    range_counts[1] += 1
+                elif final < 80:
+                    range_counts[2] += 1
+                elif final < 90:
+                    range_counts[3] += 1
+                else:
+                    range_counts[4] += 1
         except Class.DoesNotExist:
             pass
 
@@ -1320,46 +1298,94 @@ def charts(request):
     }
     return render(request, 'lms/charts.html', context)
 
-
-# ---------- AI Feedback ----------
-def generate_ai_feedback_rule_based(student, class_obj, academic_avg, attendance_summary,
-                                    total_positive, total_negative, net_points, final_score, assessment_details):
+def generate_ai_feedback_rule_based(
+    student, class_obj, academic_avg, attendance_summary,
+    total_positive, total_negative, available_points, bonus_earned,
+    final_score, assessment_details, missing_count=0
+):
+    """Fallback rule-based feedback in Indonesian when AI is unavailable."""
     feedback = f"Laporan Perkembangan {student.name} - {class_obj.name}\n\n"
-    feedback += f"Rata-rata akademik: {academic_avg:.1f}. Kehadiran: {attendance_summary}. Skor akhir: {final_score}.\n\n"
+    feedback += (
+        f"Rata-rata akademik: {academic_avg:.1f}. "
+        f"Kehadiran: {attendance_summary}. "
+        f"Skor akhir: {final_score}.\n\n"
+    )
     feedback += "Detail nilai:\n"
     for d in assessment_details:
         feedback += f"- {d['name']} ({d['date']}): {d['percentage']}% ({d['score']}/{d['max_points']})"
-        if d['notes']: feedback += f" — Catatan: {d['notes']}"
+        if d.get('notes'):
+            feedback += f" — Catatan: {d['notes']}"
         feedback += "\n"
-    feedback += f"\nPerilaku: positif {total_positive}, negatif {total_negative}, net {net_points}.\n\n"
 
-    if academic_avg >= 85: feedback += "Prestasi akademik sangat baik. "
-    elif academic_avg >= 70: feedback += "Nilai akademik cukup baik. "
-    else: feedback += "Nilai akademik perlu ditingkatkan. "
+    if missing_count > 0:
+        feedback += f"\nMasih ada {missing_count} asesmen yang belum memiliki nilai.\n"
 
-    if attendance_summary != "0/0": feedback += "Kehadiran tercatat. "
-    else: feedback += "Kehadiran belum tercatat. "
+    feedback += (
+        f"\nPerilaku: poin positif {total_positive}, poin negatif {total_negative}, "
+        f"poin tersedia {available_points}, bonus diperoleh +{bonus_earned}.\n\n"
+    )
 
-    if net_points >= 5: feedback += "Perilaku sangat positif."
-    elif net_points >= 0: feedback += "Perilaku cukup baik."
-    else: feedback += "Perilaku perlu perhatian."
+    if academic_avg >= 85:
+        feedback += "Prestasi akademik sangat baik. "
+    elif academic_avg >= 70:
+        feedback += "Nilai akademik cukup baik. "
+    else:
+        feedback += "Nilai akademik perlu ditingkatkan. "
+
+    if attendance_summary != "0/0":
+        feedback += "Kehadiran tercatat dengan baik. "
+    else:
+        feedback += "Kehadiran belum tercatat. "
+
+    if bonus_earned > 0:
+        feedback += f"Ananda telah memperoleh bonus akademik +{bonus_earned} dari konversi poin perilaku. "
+
+    if total_negative == 0:
+        feedback += "Tidak ada catatan poin negatif — sikapnya sangat baik."
+    elif total_negative <= 3:
+        feedback += "Perilaku cukup baik."
+    else:
+        feedback += "Perilaku perlu perhatian lebih."
 
     feedback += "\n\nSaran: Diskusikan dengan guru untuk rencana perbaikan."
     return feedback
 
 def generate_ai_feedback(student, class_obj):
-    scores = Score.objects.filter(student=student, assessment__class_obj=class_obj).select_related('assessment')
+    """Generate personalized AI feedback in Indonesian, using the new scoring system."""
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
+    # ---------- Data gathering (via service) ----------
+    score_data = calculate_final_score(student, class_obj)
+    academic_avg = score_data['academic_average']
+    bonus_earned = score_data['bonus']
+    final_score = score_data['final_score']
+
+    behavior_status = calculate_behavior_status(student, class_obj)
+    total_positive = behavior_status['total_positive']
+    total_negative = behavior_status['total_negative']
+    available_points = behavior_status['available_points']
+    daily_test_status = behavior_status['daily_test_status']
+    points_needed_for_test = behavior_status['points_needed_for_test']
+
+    # ---------- Assessment details ----------
+    scores = Score.objects.filter(
+        student=student, assessment__class_obj=class_obj
+    ).select_related('assessment').order_by('assessment__date')
+
     assessment_details = []
     for sc in scores:
         ass = sc.assessment
-        pct = (sc.points_earned / ass.max_points) * 100
+        pct = (sc.points_earned / ass.max_points) * 100 if ass.max_points else 0
         assessment_details.append({
             'name': ass.name,
             'date': ass.date.strftime('%d %b %Y'),
             'score': sc.points_earned,
             'max_points': ass.max_points,
             'percentage': round(pct, 1),
-            'notes': sc.notes or ''
+            'notes': sc.notes or '',
         })
 
     all_assessments = Assessment.objects.filter(class_obj=class_obj)
@@ -1367,60 +1393,80 @@ def generate_ai_feedback(student, class_obj):
     missing_assessments = [a for a in all_assessments if a.id not in assessed_ids]
     missing_count = len(missing_assessments)
 
-    # Hitung rata-rata berdasarkan semua asesmen (tidak dikerjakan = 0)
-    total_max_all = all_assessments.aggregate(total=Sum('max_points'))['total'] or 0
-    total_earned_all = scores.aggregate(total=Sum('points_earned'))['total'] or 0
-    if total_max_all > 0:
-        academic_avg = (total_earned_all / total_max_all) * 100
-    else:
-        academic_avg = 0.0
+    # ---------- Attendance ----------
+    attendance_records = AttendanceRecord.objects.filter(
+        student=student, session__class_obj=class_obj
+    )
+    total_sessions = attendance_records.count()
+    present_count = attendance_records.filter(
+        status__in=['present', 'late', 'excused', 'sick']
+    ).count()
+    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
+    attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
 
-    if total_max_all > 0:
-        academic_status = f"Rata‑rata nilai Ananda {student.name} dari seluruh {all_assessments.count()} asesmen di kelas adalah {academic_avg:.1f}."
+    teacher_name = class_obj.teacher.get_full_name() or class_obj.teacher.username
+    bulan_sekarang = datetime.now().strftime('%B %Y')
+
+    # ---------- Academic status narrative ----------
+    if all_assessments.count() > 0:
+        academic_status = (
+            f"Rata-rata nilai Ananda {student.name} dari seluruh {all_assessments.count()} "
+            f"asesmen di kelas adalah {academic_avg:.1f}."
+        )
         if missing_count > 0:
             academic_status += f" Namun, masih ada {missing_count} asesmen yang belum memiliki nilai."
     else:
         academic_status = "Belum ada asesmen di kelas ini."
 
-    attendance_records = AttendanceRecord.objects.filter(student=student, session__class_obj=class_obj)
-    total_sessions = attendance_records.count()
-    present_count = attendance_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
-    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
-    attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
-
-    behavior_entries = BehaviorEntry.objects.filter(student=student)
-    total_positive = behavior_entries.filter(points__gt=0).aggregate(total=models.Sum('points'))['total'] or 0
-    total_negative = abs(behavior_entries.filter(points__lt=0).aggregate(total=models.Sum('points'))['total'] or 0)
-    net_points = total_positive - total_negative
-
-    pos_cap = class_obj.positive_behavior_cap or 1
-    neg_cap = class_obj.negative_behavior_cap or 1
-    positive_component = min((total_positive / pos_cap) * 100, 100) if total_positive > 0 else 0
-    negative_component = max(100 - (abs(total_negative) / neg_cap) * 100, 0) if total_negative > 0 else 100
-
-    if academic_avg is not None:
-        academic_part = academic_avg * 0.6
+    # ---------- Bonus narrative ----------
+    if bonus_earned > 0:
+        bonus_status = (
+            f"Ananda telah memperoleh bonus akademik +{bonus_earned} dari konversi poin perilaku."
+        )
     else:
-        academic_part = 0
+        bonus_status = (
+            f"Saat ini Ananda memiliki {available_points} poin perilaku yang tersedia. "
+            f"Setiap {class_obj.points_per_conversion} poin dapat dikonversi menjadi "
+            f"+{class_obj.bonus_per_conversion} bonus akademik."
+        )
 
-    final_score = (
-        academic_part + attendance_percentage * 0.15 + positive_component * 0.15 + negative_component * 0.1
-    )
-    final_score = min(round(final_score, 1), 100.0) if academic_avg is not None else None
+    # ---------- Daily Test narrative ----------
+    if class_obj.min_points_for_daily_test > 0:
+        if daily_test_status == 'ready':
+            daily_test_status_text = (
+                f"Ananda sudah memenuhi syarat untuk mengikuti Daily Test "
+                f"(memiliki {available_points} poin, minimal {class_obj.min_points_for_daily_test})."
+            )
+        else:
+            daily_test_status_text = (
+                f"Untuk mengikuti Daily Test, Ananda masih membutuhkan "
+                f"{points_needed_for_test} poin lagi."
+            )
+    else:
+        daily_test_status_text = ""
 
-    teacher_name = class_obj.teacher.get_full_name() or class_obj.teacher.username
-    bulan_sekarang = datetime.now().strftime('%B %Y')
+    # ---------- Build prompt ----------
+    prompt = f"""Anda adalah {teacher_name}, seorang guru yang hangat dan komunikatif. Tulislah SURAT PRIBADI untuk orang tua/wali dari Ananda {student.name} di kelas {class_obj.name}. Gunakan Bahasa Indonesia yang mengalir, santun, dan personal. Surat boleh terdiri dari beberapa paragraf pendek. (Saat ini adalah {bulan_sekarang}.)
 
-    prompt = f"""Anda adalah {teacher_name}, seorang guru yang hangat dan komunikatif. Tulislah SURAT PRIBADI untuk orang tua/wali dari Ananda {student.name} di kelas {class_obj.name}. Gunakan Bahasa Indonesia yang mengalir, santun, dan personal. Surat boleh terdiri dari beberapa paragraf pendek. (Saat ini adalah {bulan_sekarang}, Anda bisa merujuk pada periode akademik yang sedang berlangsung).
+**PENTING - SISTEM PENILAIAN BARU:**
+- Skor akhir = Rata-rata Akademik MURNI + Bonus (dari konversi poin perilaku).
+- Kehadiran dan poin perilaku TIDAK mempengaruhi rata-rata akademik.
+- Poin perilaku hanya dipakai untuk: (1) syarat Daily Test, (2) konversi jadi bonus.
 
-**Yang harus ada dalam surat (tidak harus berurutan):**
+**Yang harus ada dalam surat:**
 - Salam pembuka "Assalamualaikum Warahmatullahi Wabarakatuh".
 - Apresiasi terhadap pencapaian atau karakter positif Ananda.
-- Gambaran umum tentang perkembangan akademik: {academic_status}
-- Informasi kehadiran dan perilaku: Kehadiran {attendance_summary} ({attendance_percentage:.1f}%), Poin positif {total_positive}, Poin negatif {total_negative}. **Jika poin positif tinggi (>=10), beri pujian bahwa Ananda aktif dan disiplin. Jika poin negatif rendah (0-2), sampaikan sikapnya sudah baik. Jika poin negatif tinggi (>5), sampaikan dengan pengertian dan tawarkan strategi perbaikan.**
-- Skor akhir sebagai ringkasan: {"Skor akhir: " + str(final_score) if final_score is not None else "Skor akhir belum dapat dihitung."}
-- Motivasi dan harapan, termasuk solusi untuk siswa asrama: pentingnya komunikasi orang tua lewat telepon/video call, koordinasi dengan wali asrama, dll.
-- Kalimat penutup yang sopan, lalu "Hormat kami, {teacher_name}" (JANGAN tulis "Wali Kelas").
+- Gambaran akademik: {academic_status}
+- Info perilaku: Poin positif {total_positive}, poin negatif {total_negative}, poin tersedia {available_points}.
+  *Jika poin positif tinggi (>=10), puji bahwa Ananda aktif dan disiplin.*
+  *Jika poin negatif rendah (0-2), sampaikan sikapnya sudah baik.*
+  *Jika poin negatif tinggi (>5), sampaikan dengan pengertian dan tawarkan strategi perbaikan.*
+- Info bonus: {bonus_status}
+- Info kehadiran: {attendance_summary} ({attendance_percentage:.1f}%).
+- {daily_test_status_text}
+- Skor akhir sebagai ringkasan: Skor Akhir: {final_score} (Rata-rata Akademik {academic_avg:.1f} + Bonus {bonus_earned})
+- Motivasi dan harapan, termasuk solusi untuk siswa asrama: pentingnya komunikasi orang tua lewat telepon/video call, koordinasi dengan wali asrama.
+- Kalimat penutup yang sopan, lalu "Hormat kami, {teacher_name}".
 
 **Data pendukung (bisa dirujuk dengan ringkas):**
 """
@@ -1438,15 +1484,15 @@ def generate_ai_feedback(student, class_obj):
     prompt += f"""
 **Gaya penulisan:**
 - Gunakan "saya" untuk guru, dan "Ananda {student.name}" untuk siswa.
-- Jangan mengulang data mentah, tapi ceritakanlah dengan bahasa yang enak dibaca.
+- Jangan mengulang data mentah, ceritakan dengan bahasa yang enak dibaca.
 - Jika ada area yang perlu ditingkatkan, sampaikan dengan optimis dan penuh pengertian.
-- Bebas menggunakan variasi kalimat, sinonim, dan gaya bahasa asalkan tetap sopan.
+- JANGAN menyebutkan rumus 60%/15%/15%/10% atau sistem lama apapun.
 - Akhiri surat dengan nada positif yang menyemangati.
 
-**Panjang surat:** sekitar 180–250 kata.
+**Panjang surat:** sekitar 180-250 kata.
 """
 
-    # ===== PERUBAHAN: Import ollama di dalam fungsi dengan fallback =====
+    # ---------- Try AI ----------
     try:
         import ollama
         response = ollama.chat(
@@ -1466,29 +1512,30 @@ def generate_ai_feedback(student, class_obj):
 
         if len(feedback) < 150:
             return generate_ai_feedback_rule_based(
-                student, class_obj, academic_avg if academic_avg else 0, attendance_summary,
-                total_positive, total_negative, net_points, final_score if final_score else 0,
-                assessment_details
+                student, class_obj, academic_avg, attendance_summary,
+                total_positive, total_negative, available_points, bonus_earned,
+                final_score, assessment_details, missing_count
             )
         return feedback
     except ImportError:
-        # ollama tidak terinstal, langsung gunakan fallback rule-based
         return generate_ai_feedback_rule_based(
-            student, class_obj, academic_avg if academic_avg else 0, attendance_summary,
-            total_positive, total_negative, net_points, final_score if final_score else 0,
-            assessment_details
+            student, class_obj, academic_avg, attendance_summary,
+            total_positive, total_negative, available_points, bonus_earned,
+            final_score, assessment_details, missing_count
         )
     except Exception as e:
-        # Error lain saat memanggil ollama (misal server tidak berjalan), fallback
-        print(f"Ollama error: {e}")  # Bisa diganti dengan logging yang tepat
+        print(f"Ollama error: {e}")
         return generate_ai_feedback_rule_based(
-            student, class_obj, academic_avg if academic_avg else 0, attendance_summary,
-            total_positive, total_negative, net_points, final_score if final_score else 0,
-            assessment_details
-        )
-
-@login_required
+            student, class_obj, academic_avg, attendance_summary,
+            total_positive, total_negative, available_points, bonus_earned,
+            final_score, assessment_details, missing_count
+        )@login_required
 def student_feedback(request, student_id, class_id):
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
@@ -1510,36 +1557,47 @@ def student_feedback(request, student_id, class_id):
         defaults={'feedback_text': '', 'generated_by_ai': False}
     )
 
-    # Data untuk ditampilkan (menggunakan perhitungan baru)
-    all_assessments = Assessment.objects.filter(class_obj=class_obj)
-    total_max_all = all_assessments.aggregate(total=Sum('max_points'))['total'] or 0
-    total_earned_all = Score.objects.filter(student=student, assessment__in=all_assessments).aggregate(total=Sum('points_earned'))['total'] or 0
-    if total_max_all > 0:
-        academic_avg = (total_earned_all / total_max_all) * 100
-    else:
-        academic_avg = 80.0  # fallback
+    # ---------- Data (via service) ----------
+    score_data = calculate_final_score(student, class_obj)
+    academic_avg = score_data['academic_average']
+    bonus_earned = score_data['bonus']
+    final_score = score_data['final_score']
 
-    attendance_records = AttendanceRecord.objects.filter(student=student, session__class_obj=class_obj)
+    behavior_status = calculate_behavior_status(student, class_obj)
+
+    # ---------- Assessments ----------
+    all_assessments = Assessment.objects.filter(class_obj=class_obj)
+    scores = Score.objects.filter(
+        student=student, assessment__in=all_assessments
+    ).select_related('assessment')
+
+    assessment_details = []
+    for sc in scores:
+        ass = sc.assessment
+        pct = (sc.points_earned / ass.max_points) * 100 if ass.max_points else 0
+        assessment_details.append({
+            'name': ass.name,
+            'date': ass.date.strftime('%d %b %Y'),
+            'score': sc.points_earned,
+            'max_points': ass.max_points,
+            'percentage': round(pct, 1),
+            'notes': sc.notes,
+        })
+
+    assessed_ids = set(scores.values_list('assessment_id', flat=True))
+    missing_assessments = [a for a in all_assessments if a.id not in assessed_ids]
+
+    # ---------- Attendance ----------
+    attendance_records = AttendanceRecord.objects.filter(
+        student=student, session__class_obj=class_obj
+    )
     total_sessions = attendance_records.count()
-    present_count = attendance_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
-    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
+    present_count = attendance_records.filter(
+        status__in=['present', 'late', 'excused', 'sick']
+    ).count()
     attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
 
-    behavior_entries = BehaviorEntry.objects.filter(student=student)
-    total_positive = behavior_entries.filter(points__gt=0).aggregate(total=models.Sum('points'))['total'] or 0
-    total_negative = abs(behavior_entries.filter(points__lt=0).aggregate(total=models.Sum('points'))['total'] or 0)
-    net_points = total_positive - total_negative
-
-    pos_cap = class_obj.positive_behavior_cap or 1
-    neg_cap = class_obj.negative_behavior_cap or 1
-    positive_component = min((total_positive / pos_cap) * 100, 100)
-    negative_component = max(100 - (abs(total_negative) / neg_cap) * 100, 0)
-    final_score = (
-        academic_avg * 0.6 + attendance_percentage * 0.15
-        + positive_component * 0.15 + negative_component * 0.1
-    )
-    final_score = min(round(final_score, 1), 100.0)
-
+    # ---------- POST handling ----------
     if request.method == 'POST':
         action = request.POST.get('action')
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
@@ -1552,8 +1610,7 @@ def student_feedback(request, student_id, class_id):
                 feedback_obj.save()
                 if is_ajax:
                     return JsonResponse({'status': 'ok'})
-                else:
-                    messages.success(request, "Feedback saved.")
+                messages.success(request, "Feedback saved.")
         elif action == 'generate_ai':
             new_text = generate_ai_feedback(student, class_obj)
             feedback_obj.feedback_text = new_text
@@ -1562,329 +1619,532 @@ def student_feedback(request, student_id, class_id):
             messages.success(request, "AI feedback generated.")
         return redirect('student_feedback', student_id=student_id, class_id=class_id)
 
-    # assessment_details untuk JS
-    scores = Score.objects.filter(student=student, assessment__class_obj=class_obj).select_related('assessment')
-    assessment_details = []
-    for sc in scores:
-        ass = sc.assessment
-        pct = (sc.points_earned / ass.max_points) * 100
-        assessment_details.append({
-            'name': ass.name, 'date': ass.date.strftime('%d %b %Y'),
-            'score': sc.points_earned, 'max_points': ass.max_points,
-            'percentage': round(pct, 1), 'notes': sc.notes
-        })
-    
-    # Hitung asesmen yang belum dinilai untuk ditampilkan di UI
-    all_assessments = Assessment.objects.filter(class_obj=class_obj)
-    assessed_ids = set(Score.objects.filter(student=student, assessment__in=all_assessments)
-                   .values_list('assessment_id', flat=True))
-    missing_assessments = [a for a in all_assessments if a.id not in assessed_ids]
-
     context = {
         'student': student,
         'class_obj': class_obj,
         'feedback': feedback_obj,
         'academic_avg': round(academic_avg, 1),
         'attendance_percentage': round(attendance_percentage, 1),
-        'total_positive': total_positive,
-        'total_negative': total_negative,
-        'net_points': net_points,
+        'total_positive': behavior_status['total_positive'],
+        'total_negative': behavior_status['total_negative'],
+        'available_points': behavior_status['available_points'],
+        'bonus_earned': bonus_earned,
         'final_score': final_score,
         'assessment_details_json': json.dumps(assessment_details),
         'missing_assessments': missing_assessments,
     }
     return render(request, 'lms/student_feedback.html', context)
 
-
 # ---------- PDF Generation ----------
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.graphics.shapes import Drawing, Line
 import io, os, re, zipfile
 from io import BytesIO
 
 def _generate_report_pdf_buffer(student, class_obj):
-    # Gunakan metode baru untuk academic_avg
-    all_assessments = Assessment.objects.filter(class_obj=class_obj)
-    total_max = all_assessments.aggregate(total=Sum('max_points'))['total'] or 0
-    total_earned = Score.objects.filter(student=student, assessment__in=all_assessments).aggregate(total=Sum('points_earned'))['total'] or 0
-    if total_max > 0:
-        academic_avg = (total_earned / total_max) * 100
-    else:
-        academic_avg = 80.0
+    """
+    Generate a polished PDF report for a student in a class.
+    Uses Andhivie brand palette: Deep Red #9B1B30, Fox Orange #E07A3D.
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
 
-    scores = Score.objects.filter(student=student, assessment__class_obj=class_obj).select_related('assessment')
+    # ---------- Data ----------
+    score_data = calculate_final_score(student, class_obj)
+    academic_avg = score_data['academic_average']
+    bonus_earned = score_data['bonus']
+    final_score = score_data['final_score']
+
+    behavior_status = calculate_behavior_status(student, class_obj)
+    total_positive = behavior_status['total_positive']
+    total_negative = behavior_status['total_negative']
+    available_points = behavior_status['available_points']
+
+    scores = Score.objects.filter(
+        student=student, assessment__class_obj=class_obj
+    ).select_related('assessment').order_by('assessment__date')
+
     assessment_details = []
     for sc in scores:
         ass = sc.assessment
-        pct = (sc.points_earned / ass.max_points) * 100
+        pct = (sc.points_earned / ass.max_points) * 100 if ass.max_points else 0
         assessment_details.append({
-            'name': ass.name, 'date': ass.date.strftime('%d %b %Y'),
-            'score': sc.points_earned, 'max': ass.max_points,
-            'percentage': round(pct, 1), 'notes': sc.notes
+            'name': ass.name,
+            'type': ass.assessment_type.name if ass.assessment_type else '—',
+            'date': ass.date.strftime('%d %b %Y'),
+            'score': sc.points_earned,
+            'max': ass.max_points,
+            'percentage': round(pct, 1),
         })
 
-    attendance_records = AttendanceRecord.objects.filter(student=student, session__class_obj=class_obj)
-    total_sessions = attendance_records.count()
-    present_count = attendance_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
-    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
-    attendance_percentage = (present_count / total_sessions * 100) if total_sessions > 0 else 0.0
-
-    behavior_entries = BehaviorEntry.objects.filter(student=student)
-    total_positive = behavior_entries.filter(points__gt=0).aggregate(total=models.Sum('points'))['total'] or 0
-    total_negative = abs(behavior_entries.filter(points__lt=0).aggregate(total=models.Sum('points'))['total'] or 0)
-    net_points = total_positive - total_negative
-
-    pos_cap = class_obj.positive_behavior_cap or 1
-    neg_cap = class_obj.negative_behavior_cap or 1
-    positive_component = min((total_positive / pos_cap) * 100, 100) if total_positive > 0 else 0
-    negative_component = max(100 - (abs(total_negative) / neg_cap) * 100, 0) if total_negative > 0 else 100
-    final_score = (
-        academic_avg * 0.6 + attendance_percentage * 0.15
-        + positive_component * 0.15 + negative_component * 0.1
+    attendance_records = AttendanceRecord.objects.filter(
+        student=student, session__class_obj=class_obj
     )
-    final_score = min(round(final_score, 1), 100.0)
+    total_sessions = attendance_records.count()
+    present_count = attendance_records.filter(
+        status__in=['present', 'late', 'excused', 'sick']
+    ).count()
+    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
 
     feedback_obj = StudentFeedback.objects.filter(
         student=student, class_obj=class_obj, semester=class_obj.semester
     ).first()
-    feedback_text = feedback_obj.feedback_text if feedback_obj else "Belum ada feedback dari guru."
+    feedback_text = feedback_obj.feedback_text if feedback_obj else "No feedback has been written yet."
 
     semester_name = class_obj.semester.name
     if "even" in semester_name.lower() or "genap" in semester_name.lower():
-        semester_id = "Semester Genap"
+        semester_label = "Even Semester"
     elif "odd" in semester_name.lower() or "ganjil" in semester_name.lower():
-        semester_id = "Semester Ganjil"
+        semester_label = "Odd Semester"
     else:
-        semester_id = semester_name
+        semester_label = semester_name
 
     def fmt_num(n):
-        return str(int(n)) if isinstance(n, float) and n.is_integer() else f"{n:.1f}"
+        if isinstance(n, float) and n.is_integer():
+            return str(int(n))
+        if isinstance(n, int):
+            return str(n)
+        return f"{n:.1f}"
 
+    def fmt_pos(n):
+        return f"+{n}" if n > 0 else "0"
+
+    def fmt_neg(n):
+        return f"-{n}" if n > 0 else "0"
+
+    # ---------- Colors ----------
+    DEEP_RED = colors.HexColor('#9B1B30')
+    FOX_ORANGE = colors.HexColor('#E07A3D')
+    CHARCOAL = colors.HexColor('#1F2937')
+    WARM_GRAY = colors.HexColor('#6B7280')
+    SOFT_CREAM = colors.HexColor('#FDF8F4')
+    SOFT_GRAY = colors.HexColor('#F3F4F6')
+    BORDER_GRAY = colors.HexColor('#E5E7EB')
+    GREEN = colors.HexColor('#059669')
+    RED = colors.HexColor('#DC2626')
+
+    # ---------- Document ----------
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.8*cm, leftMargin=1.8*cm,
-                            topMargin=1.8*cm, bottomMargin=1.5*cm)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=1.4*cm, leftMargin=1.4*cm,
+        topMargin=1.2*cm, bottomMargin=1.8*cm
+    )
     story = []
     styles = getSampleStyleSheet()
-
-    PRIMARY_COLOR = colors.HexColor('#1e3a5f')
-    LIGHT_BG = colors.HexColor('#f4f6f9')
-    GREY_TEXT = colors.HexColor('#555555')
     base_normal = styles['Normal']
 
-    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName='Helvetica-Bold',
-                                 fontSize=20, textColor=PRIMARY_COLOR, alignment=TA_CENTER, spaceAfter=6)
-    subtitle_style = ParagraphStyle('Subtitle', parent=base_normal, fontName='Helvetica',
-                                    fontSize=11, textColor=GREY_TEXT, alignment=TA_CENTER, spaceAfter=20)
-    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontName='Helvetica-Bold',
-                                   fontSize=13, textColor=PRIMARY_COLOR, spaceBefore=18, spaceAfter=10,
-                                   keepWithNext=True)
-    normal_style = ParagraphStyle('Normal', parent=base_normal, fontName='Helvetica', fontSize=10,
-                                  leading=14, textColor=colors.black, spaceAfter=8,
-                                  allowWidows=0, allowOrphans=0)
-    info_label_style = ParagraphStyle('InfoLabel', parent=base_normal, fontName='Helvetica-Bold',
-                                      fontSize=10, textColor=PRIMARY_COLOR, alignment=TA_CENTER, spaceAfter=2)
-    info_value_style = ParagraphStyle('InfoValue', parent=base_normal, fontName='Helvetica',
-                                      fontSize=11, textColor=colors.black, alignment=TA_CENTER, spaceAfter=6)
-    box_label_style = ParagraphStyle('BoxLabel', parent=base_normal, fontName='Helvetica', fontSize=9,
-                                     textColor=GREY_TEXT, alignment=TA_CENTER, spaceAfter=2)
-    box_value_style = ParagraphStyle('BoxValue', parent=base_normal, fontName='Helvetica-Bold',
-                                     fontSize=14, textColor=PRIMARY_COLOR, alignment=TA_CENTER, spaceAfter=4)
-    right_header_style = ParagraphStyle('RightHeader', parent=base_normal, fontName='Helvetica',
-                                        fontSize=9, textColor=GREY_TEXT, alignment=TA_RIGHT,
-                                        spaceBefore=-20, spaceAfter=4)
-    bullet_style = ParagraphStyle('Bullet', parent=normal_style, leftIndent=20,
-                                  fontSize=10, leading=14, spaceAfter=4)
-    footer_style = ParagraphStyle('Footer', parent=base_normal, fontName='Helvetica',
-                                  fontSize=8, textColor=GREY_TEXT, alignment=TA_CENTER,
-                                  spaceAfter=4, allowWidows=0, allowOrphans=0)
+    # ---------- Styles ----------
+    title_style = ParagraphStyle(
+        'Title', parent=styles['Heading1'],
+        fontName='Helvetica-Bold', fontSize=22,
+        textColor=DEEP_RED, alignment=TA_CENTER, spaceAfter=2, leading=26
+    )
+    subtitle_style = ParagraphStyle(
+        'Subtitle', parent=base_normal, fontName='Helvetica',
+        fontSize=10, textColor=WARM_GRAY, alignment=TA_CENTER, spaceAfter=2
+    )
+    heading_style = ParagraphStyle(
+        'Heading', parent=styles['Heading2'],
+        fontName='Helvetica-Bold', fontSize=11.5,
+        textColor=DEEP_RED, spaceBefore=12, spaceAfter=7,
+        keepWithNext=True
+    )
+    normal_style = ParagraphStyle(
+        'Normal', parent=base_normal, fontName='Helvetica',
+        fontSize=9.5, leading=13, textColor=CHARCOAL, spaceAfter=5,
+        allowWidows=0, allowOrphans=0
+    )
+    info_label_style = ParagraphStyle(
+        'InfoLabel', parent=base_normal, fontName='Helvetica-Bold',
+        fontSize=7.5, textColor=WARM_GRAY, alignment=TA_CENTER, spaceAfter=3
+    )
+    info_value_style = ParagraphStyle(
+        'InfoValue', parent=base_normal, fontName='Helvetica-Bold',
+        fontSize=11, textColor=CHARCOAL, alignment=TA_CENTER
+    )
+    metric_label_style = ParagraphStyle(
+        'MetricLabel', parent=base_normal, fontName='Helvetica-Bold',
+        fontSize=7, textColor=WARM_GRAY, alignment=TA_CENTER, leading=9
+    )
+    metric_value_style = ParagraphStyle(
+        'MetricValue', parent=base_normal, fontName='Helvetica-Bold',
+        fontSize=16, textColor=CHARCOAL, alignment=TA_CENTER, leading=20
+    )
+    bullet_style = ParagraphStyle(
+        'Bullet', parent=normal_style, leftIndent=15,
+        fontSize=9, leading=12.5, spaceAfter=3
+    )
+    right_header_style = ParagraphStyle(
+        'RightHeader', parent=base_normal, fontName='Helvetica',
+        fontSize=9, textColor=WARM_GRAY, alignment=TA_RIGHT, spaceAfter=5
+    )
 
-    story.append(Paragraph(f"{class_obj.name} — {semester_id}", right_header_style))
-    story.append(Spacer(1, 0.05*inch))
+    # ============================================================
+    # HEADER
+    # ============================================================
+    story.append(Paragraph(
+        f"{class_obj.name} &nbsp;&nbsp;·&nbsp;&nbsp; {semester_label}",
+        right_header_style
+    ))
+
     logo_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'logo.png')
     if os.path.exists(logo_path):
-        logo = Image(logo_path, width=1.0*inch, height=1.0*inch)
+        logo = Image(logo_path, width=0.75*inch, height=0.75*inch)
         logo.hAlign = 'CENTER'
         story.append(logo)
-        story.append(Spacer(1, 0.1*inch))
-    story.append(Paragraph("LAPORAN PERKEMBANGAN SISWA", title_style))
-    story.append(Paragraph("SMP Al-Izzah Leadership School Batu", subtitle_style))
-    line = Drawing(460, 1)
-    line.add(Line(0, 0, 460, 0))
-    story.append(line)
-    story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.05*inch))
 
+    story.append(Paragraph("STUDENT PROGRESS REPORT", title_style))
+    story.append(Paragraph(
+        "SMP Al-Izzah Leadership School Batu",
+        subtitle_style
+    ))
+
+    story.append(Spacer(1, 0.08*inch))
+    deco = Drawing(510, 5)
+    deco.add(Line(80, 2.5, 430, 2.5, strokeColor=DEEP_RED, strokeWidth=2.5))
+    deco.hAlign = 'CENTER'
+    story.append(deco)
+    story.append(Spacer(1, 0.15*inch))
+
+    # ============================================================
+    # STUDENT INFO
+    # ============================================================
     info_rows = [
-        [Paragraph("<b>Nama Siswa</b>", info_label_style),
-         Paragraph("<b>Kelas</b>", info_label_style),
-         Paragraph("<b>Pengajar</b>", info_label_style)],
-        [Paragraph(student.name, info_value_style),
-         Paragraph(class_obj.name, info_value_style),
-         Paragraph(class_obj.teacher.get_full_name() or class_obj.teacher.username, info_value_style)]
+        [
+            Paragraph("STUDENT NAME", info_label_style),
+            Paragraph("CLASS", info_label_style),
+            Paragraph("TEACHER", info_label_style),
+        ],
+        [
+            Paragraph(student.name, info_value_style),
+            Paragraph(class_obj.name, info_value_style),
+            Paragraph(
+                class_obj.teacher.get_full_name() or class_obj.teacher.username,
+                info_value_style
+            ),
+        ],
     ]
     info_table = Table(info_rows, colWidths=[doc.width/3.0]*3)
     info_table.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,0), (-1,0), 2),
-        ('TOPPADDING', (0,1), (-1,1), 2), ('BOTTOMPADDING', (0,1), (-1,1), 6),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 0), (-1, -1), SOFT_CREAM),
+        ('BOX', (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+        ('LINEAFTER', (0, 0), (0, -1), 0.5, BORDER_GRAY),
+        ('LINEAFTER', (1, 0), (1, -1), 0.5, BORDER_GRAY),
+        ('LINEABOVE', (0, 0), (-1, 0), 2.5, DEEP_RED),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 3),
+        ('TOPPADDING', (0, 1), (-1, 1), 2),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 10),
     ]))
     story.append(info_table)
-    story.append(Spacer(1, 0.06*inch))
+    story.append(Spacer(1, 0.16*inch))
 
-    story.append(Paragraph("Ringkasan Capaian", heading_style))
+    # ============================================================
+    # ACHIEVEMENT SUMMARY
+    # ============================================================
+    story.append(Paragraph("Achievement Summary", heading_style))
+
     metrics = [
-        ("Rata-rata Akademik", fmt_num(academic_avg)),
-        ("Kehadiran", attendance_summary),
-        ("Poin Positif", f"+{total_positive}"),
-        ("Poin Negatif", f"-{total_negative}"),
-        ("Net Poin", str(net_points)),
-        ("Final Score", fmt_num(final_score))
+        ("ACADEMIC AVG.", fmt_num(academic_avg), CHARCOAL),
+        ("ATTENDANCE", attendance_summary, CHARCOAL),
+        ("FINAL SCORE", fmt_num(final_score), FOX_ORANGE),
+        ("POSITIVE PTS.", fmt_pos(total_positive), GREEN),
+        ("NEGATIVE PTS.", fmt_neg(total_negative), RED),
+        ("BONUS EARNED", fmt_pos(bonus_earned), FOX_ORANGE),
     ]
-    rows = []
-    for i in range(0, len(metrics), 3):
-        row_cells = []
-        for j in range(3):
-            if i + j < len(metrics):
-                label, value = metrics[i + j]
-                cell = Table([[Paragraph(label, box_label_style)], [Paragraph(value, box_value_style)]],
-                             colWidths=[doc.width/3.0 - 8])
-                cell.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,-1), LIGHT_BG),
-                    ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#d0d0d0')),
-                    ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                    ('TOPPADDING', (0,0), (-1,-1), 10), ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-                ]))
-                row_cells.append(cell)
-            else:
-                row_cells.append(Paragraph("", normal_style))
-        rows.append(row_cells)
-    summary_table = Table(rows, colWidths=[doc.width/3.0]*3)
-    summary_table.setStyle(TableStyle([
-        ('LEFTPADDING', (0,0), (-1,-1), 4), ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 0.06*inch))
+
+    def make_metric_card(label, value, value_color):
+        value_style = ParagraphStyle(
+            f'MV_{label}', parent=metric_value_style, textColor=value_color
+        )
+        card = Table(
+            [
+                [Paragraph(label, metric_label_style)],
+                [Paragraph(value, value_style)],
+            ],
+            colWidths=[doc.width/3.0 - 12]
+        )
+        card.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 0), (-1, -1), SOFT_CREAM),
+            ('BOX', (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, value_color),
+            ('TOPPADDING', (0, 0), (-1, 0), 7),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
+            ('TOPPADDING', (0, 1), (-1, 1), 1),
+            ('BOTTOMPADDING', (0, 1), (-1, 1), 9),
+        ]))
+        return card
+
+    for row_start in range(0, 6, 3):
+        cells = []
+        for i in range(row_start, row_start + 3):
+            label, value, color = metrics[i]
+            cells.append(make_metric_card(label, value, color))
+        row_table = Table([cells], colWidths=[doc.width/3.0]*3)
+        row_table.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(row_table)
+
+    story.append(Spacer(1, 0.14*inch))
+
+    # ============================================================
+    # ASSESSMENT DETAILS
+    # ============================================================
+    story.append(Paragraph("Assessment Details", heading_style))
 
     if assessment_details:
-        story.append(Paragraph("Rincian Nilai Tugas / Ujian", heading_style))
-        ass_data = [["No.", "Topik", "Tanggal", "Nilai", "%"]]
+        header = ["No.", "Topic", "Type", "Date", "Score", "%"]
+        ass_data = [header]
         for i, d in enumerate(assessment_details, 1):
             ass_data.append([
-                str(i), Paragraph(d['name'], normal_style), d['date'],
-                f"{fmt_num(d['score'])}/{fmt_num(d['max'])}", f"{fmt_num(d['percentage'])}%"
+                str(i),
+                Paragraph(d['name'], normal_style),
+                Paragraph(d['type'], normal_style),
+                d['date'],
+                f"{fmt_num(d['score'])}/{fmt_num(d['max'])}",
+                f"{fmt_num(d['percentage'])}%",
             ])
-        ass_table = Table(ass_data, colWidths=[30, 200, 80, 60, 50], repeatRows=1)
+
+        ass_table = Table(
+            ass_data,
+            colWidths=[26, 155, 95, 60, 55, 45],
+            repeatRows=1
+        )
         ass_table.setStyle(TableStyle([
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'), ('FONTSIZE', (0,0), (-1,-1), 10),
-            ('BACKGROUND', (0,0), (-1,0), PRIMARY_COLOR), ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#fafafa')]),
-            ('TOPPADDING', (0,0), (-1,-1), 8), ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), DEEP_RED),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.4, BORDER_GRAY),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, SOFT_CREAM]),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]))
         story.append(ass_table)
-        story.append(Spacer(1, 0.12*inch))
-        story.append(Paragraph("* % = Persentase capaian terhadap nilai maksimal.", normal_style))
-        story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.06*inch))
+        story.append(Paragraph(
+            "<i>% = Achievement percentage against the maximum score.</i>",
+            ParagraphStyle('Note', parent=normal_style, fontSize=7.5, textColor=WARM_GRAY)
+        ))
+    else:
+        empty_table = Table(
+            [[Paragraph(
+                "<i>No assessments have been recorded for this student yet.</i>",
+                ParagraphStyle('Empty', parent=normal_style,
+                               alignment=TA_CENTER, textColor=WARM_GRAY)
+            )]],
+            colWidths=[doc.width]
+        )
+        empty_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), SOFT_GRAY),
+            ('BOX', (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+            ('TOPPADDING', (0, 0), (-1, -1), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 14),
+        ]))
+        story.append(empty_table)
 
-    story.append(Paragraph("Catatan / Feedback Guru", heading_style))
+    story.append(Spacer(1, 0.16*inch))
+
+    # ============================================================
+    # TEACHER NOTES / FEEDBACK
+    # ============================================================
+    story.append(Paragraph("Teacher Notes / Feedback", heading_style))
+
     clean_feedback = re.sub(r'\*\*(.*?)\*\*', r'\1', feedback_text)
     clean_feedback = re.sub(r'\*(.*?)\*', r'\1', clean_feedback)
     clean_feedback = clean_feedback.replace('#', '')
     feedback_paragraphs = [p.strip() for p in clean_feedback.split('\n') if p.strip()]
     if not feedback_paragraphs:
-        feedback_paragraphs = ["Belum ada feedback dari guru."]
+        feedback_paragraphs = ["No feedback has been written yet."]
+
     feedback_content = []
     for i, para in enumerate(feedback_paragraphs):
         feedback_content.append(Paragraph(para, normal_style))
         if i < len(feedback_paragraphs) - 1:
-            feedback_content.append(Spacer(1, 0.06*inch))
+            feedback_content.append(Spacer(1, 0.04*inch))
+
     feedback_table = Table([[feedback_content]], colWidths=[doc.width])
     feedback_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BG), ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#c0c0c0')),
-        ('TOPPADDING', (0,0), (-1,-1), 12), ('BOTTOMPADDING', (0,0), (-1,-1), 12),
-        ('LEFTPADDING', (0,0), (-1,-1), 15), ('RIGHTPADDING', (0,0), (-1,-1), 15),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, -1), SOFT_CREAM),
+        ('BOX', (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+        ('LINEBEFORE', (0, 0), (0, -1), 3.5, FOX_ORANGE),
+        ('TOPPADDING', (0, 0), (-1, -1), 13),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 13),
+        ('LEFTPADDING', (0, 0), (-1, -1), 16),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 16),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(feedback_table)
-    story.append(Spacer(1, 0.06*inch))
+    story.append(Spacer(1, 0.16*inch))
 
-    story.append(Paragraph("Informasi Sistem Poin Perilaku", heading_style))
+    # ============================================================
+    # BEHAVIOR POINT SYSTEM
+    # ============================================================
+    story.append(Paragraph("How Behavior Points Work", heading_style))
+
     behavior_content = []
-    behavior_content.append(Paragraph("<b>✅ Perilaku Positif (Dihargai)</b>", normal_style))
-    positive_items = [
-        "Partisipasi Aktif: Menjawab pertanyaan, mengajukan pertanyaan kritis.",
-        "Kepedulian Sosial: Membantu teman yang kesulitan memahami pelajaran.",
-        "Tanggung Jawab Pribadi: Mengumpulkan tugas tepat waktu, membawa perlengkapan lengkap.",
-        "Inisiatif Lingkungan: Merapikan kelas, membersihkan papan tulis tanpa disuruh.",
-        "Peningkatan Akademik: Nilai ulangan menunjukkan kemajuan signifikan.",
-        "Sportivitas: Menghargai pendapat atau penampilan teman."
-    ]
-    for item in positive_items:
-        behavior_content.append(Paragraph(f"• {item}", bullet_style))
-    behavior_content.append(Spacer(1, 0.06*inch))
-    behavior_content.append(Paragraph("<b>❌ Perilaku Negatif (Dikurangi)</b>", normal_style))
-    negative_items = [
-        "Mengganggu KBM: Mengobrol saat guru menjelaskan, bercanda berlebihan.",
-        "Ketidaksiapan Belajar: Tidak membawa buku paket atau alat tulis.",
-        "Penyalahgunaan Etika: Keluar-masuk kelas tanpa izin.",
-        "Pelanggaran Integritas: Mencontek, berbohong, membuat alasan palsu.",
-        "Sikap Tidak Menghargai: Mengejek jawaban teman, membantah dengan nada tinggi."
-    ]
-    for item in negative_items:
-        behavior_content.append(Paragraph(f"• {item}", bullet_style))
-    behavior_content.append(Spacer(1, 0.06*inch))
     behavior_content.append(Paragraph(
-        "<i>Catatan Inti: Sistem ini berfungsi untuk mencatat karakter, bukan menghakimi. "
-        "Siswa tetap diberi kesempatan memperbaiki diri melalui tindakan positif pengganti.</i>", normal_style))
+        "<b>Point Scale</b> &nbsp;&nbsp;&nbsp;"
+        "<font color='#059669'>Positive: +1, +2, +3</font> &nbsp;&nbsp;|&nbsp;&nbsp; "
+        "<font color='#DC2626'>Negative: -1, -2, -3</font>",
+        normal_style
+    ))
+    behavior_content.append(Spacer(1, 0.05*inch))
+
+    behavior_content.append(Paragraph(
+        "<b>Final Score Formula</b>",
+        ParagraphStyle('Sub', parent=normal_style, fontSize=9.5, spaceAfter=4, textColor=DEEP_RED)
+    ))
+    behavior_content.append(Paragraph(
+        "&bull; The academic average comes from assessment scores only.",
+        bullet_style
+    ))
+    behavior_content.append(Paragraph(
+        "&bull; Attendance and behavior points do <b>not</b> change the academic average.",
+        bullet_style
+    ))
+    behavior_content.append(Paragraph(
+        f"&bull; Every <b>{class_obj.points_per_conversion} available points</b> "
+        f"can be converted into <b>+{class_obj.bonus_per_conversion} academic bonus</b> "
+        f"(maximum <b>+{class_obj.max_bonus}</b> per semester).",
+        bullet_style
+    ))
+    behavior_content.append(Paragraph(
+        f"&bull; Current available points: <b>{available_points}</b> "
+        f"&nbsp;&nbsp;|&nbsp;&nbsp; Bonus earned so far: <b>+{bonus_earned}</b>",
+        bullet_style
+    ))
+    behavior_content.append(Spacer(1, 0.05*inch))
+
+    if class_obj.min_points_for_daily_test > 0:
+        behavior_content.append(Paragraph(
+            f"<b>Daily Test Requirement</b> &mdash; Students need at least "
+            f"<b>{class_obj.min_points_for_daily_test} available points</b> "
+            f"before taking a Daily Test.",
+            normal_style
+        ))
+    else:
+        behavior_content.append(Paragraph(
+            "<b>Daily Test Requirement</b> &mdash; Not enforced for this class.",
+            normal_style
+        ))
+
+    behavior_content.append(Spacer(1, 0.05*inch))
+    behavior_content.append(Paragraph(
+        "<i>This system records character, not judges it. "
+        "Students are always given the chance to improve through positive replacement actions.</i>",
+        ParagraphStyle('CoreNote', parent=normal_style,
+                       fontSize=8.5, textColor=WARM_GRAY)
+    ))
+
     behavior_table = Table([[behavior_content]], colWidths=[doc.width])
     behavior_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.white), ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#a0a0a0')),
-        ('TOPPADDING', (0,0), (-1,-1), 12), ('BOTTOMPADDING', (0,0), (-1,-1), 12),
-        ('LEFTPADDING', (0,0), (-1,-1), 15), ('RIGHTPADDING', (0,0), (-1,-1), 15),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.5, BORDER_GRAY),
+        ('LINEBEFORE', (0, 0), (0, -1), 3.5, DEEP_RED),
+        ('TOPPADDING', (0, 0), (-1, -1), 13),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 13),
+        ('LEFTPADDING', (0, 0), (-1, -1), 16),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 16),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(behavior_table)
-    story.append(Spacer(1, 0.06*inch))
+
+    # ============================================================
+    # SIGNATURE (compact + keep-together with behavior table)
+    # ============================================================
+    story.append(Spacer(1, 0.18*inch))
 
     signature_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'sig.png')
     full_name = class_obj.teacher.get_full_name() or class_obj.teacher.username
     teacher_name = full_name.split(',')[0].strip()
-    center_style = ParagraphStyle('CenterStyle', parent=normal_style, alignment=TA_CENTER, fontSize=11, leading=16)
+
+    center_style = ParagraphStyle(
+        'CenterStyle', parent=normal_style,
+        alignment=TA_CENTER, fontSize=10, leading=13
+    )
+
     right_content = []
-    right_content.append(Paragraph("<b>Pengajar</b>", center_style))
-    right_content.append(Spacer(1, 0.15*inch))
+    right_content.append(Paragraph(
+        "<font color='#6B7280' size='8'>Teacher</font>",
+        center_style
+    ))
+    right_content.append(Spacer(1, 0.05*inch))
+
     if os.path.exists(signature_path):
-        signature_img = Image(signature_path, width=1.5*inch, height=0.6*inch)
+        signature_img = Image(signature_path, width=1.2*inch, height=0.45*inch)
         signature_img.hAlign = 'CENTER'
         right_content.append(signature_img)
-        right_content.append(Spacer(1, 0.1*inch))
+        right_content.append(Spacer(1, 0.04*inch))
     else:
-        right_content.append(Paragraph("<i>(tanda tangan digital)</i>", center_style))
-        right_content.append(Spacer(1, 0.1*inch))
-    right_content.append(Paragraph(f"<b>{teacher_name}</b>", center_style))
+        right_content.append(Spacer(1, 0.4*inch))
+
+    right_content.append(Paragraph(
+        f"<b>{teacher_name}</b>",
+        ParagraphStyle('TeacherName', parent=center_style, textColor=DEEP_RED, fontSize=11)
+    ))
+
     signature_data = [[Paragraph("", normal_style), right_content]]
-    signature_table = Table(signature_data, colWidths=[doc.width*0.55, doc.width*0.45])
+    signature_table = Table(signature_data, colWidths=[doc.width*0.5, doc.width*0.5])
     signature_table.setStyle(TableStyle([
-        ('ALIGN', (1,0), (1,0), 'CENTER'), ('VALIGN', (1,0), (1,0), 'TOP'),
-        ('LEFTPADDING', (1,0), (1,0), 0), ('RIGHTPADDING', (1,0), (1,0), 0),
-        ('TOPPADDING', (1,0), (1,0), 20),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('VALIGN', (1, 0), (1, 0), 'TOP'),
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
+        ('RIGHTPADDING', (1, 0), (1, 0), 0),
+        ('TOPPADDING', (1, 0), (1, 0), 5),
     ]))
-    story.append(signature_table)
-    story.append(Spacer(1, 0.2*inch))
 
-    story.append(Paragraph(f"Dicetak pada: {timezone.now().strftime('%d %B %Y, %H:%M')}", footer_style))
-    story.append(Paragraph("Laporan ini dihasilkan secara otomatis dari Classroom LMS by Andhivie", footer_style))
+    # Keep signature together as one block (won't split across pages)
+    story.append(KeepTogether(signature_table))
 
-    doc.build(story)
+    # ============================================================
+    # BUILD WITH PAGE FOOTER
+    # ============================================================
+    def add_page_footer(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setStrokeColor(BORDER_GRAY)
+        canvas.setLineWidth(0.5)
+        canvas.line(1.4*cm, 1.2*cm, A4[0] - 1.4*cm, 1.2*cm)
+
+        canvas.setFont('Helvetica', 7.5)
+        canvas.setFillColor(WARM_GRAY)
+        canvas.drawString(
+            1.4*cm, 0.95*cm,
+            f"Printed on {timezone.now().strftime('%d %B %Y, %H:%M')}"
+        )
+        canvas.drawCentredString(
+            A4[0] / 2.0, 0.95*cm,
+            "Classroom LMS by Andhivie"
+        )
+        canvas.drawRightString(
+            A4[0] - 1.4*cm, 0.95*cm,
+            f"Page {doc_obj.page}"
+        )
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=add_page_footer, onLaterPages=add_page_footer)
     buffer.seek(0)
     return buffer
-
 
 @login_required
 def generate_report_pdf(request, student_id, class_id):
@@ -1946,6 +2206,18 @@ def download_class_reports_zip(request, class_id):
 # ---------- Export to Excel ----------
 @login_required
 def export_class_to_excel(request, class_id):
+    """
+    Export class data to Excel with the new scoring system:
+      - Pure Academic Average (from assessments only)
+      - Bonus (from behavior conversions)
+      - Final Score = Academic + Bonus (capped at 100)
+      - Behavior points and attendance shown as info only, not in final score
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
@@ -1954,102 +2226,81 @@ def export_class_to_excel(request, class_id):
     if profile.role != 'teacher':
         messages.error(request, "Only teachers can access.")
         return redirect('dashboard')
+
     try:
         class_obj = Class.objects.get(id=class_id, teacher=request.user)
     except Class.DoesNotExist:
         messages.error(request, "Class not found.")
         return redirect('dashboard')
 
-    enrollments = Enrollment.objects.filter(
-        class_obj=class_obj, is_active=True
-    ).select_related('student').order_by('student__name')
+    enrollments = (
+        Enrollment.objects
+        .filter(class_obj=class_obj, is_active=True)
+        .select_related('student')
+        .order_by('student__name')
+    )
     students = [e.student for e in enrollments]
-    student_ids = [s.id for s in students]
 
-    data = []
-    if student_ids:
-        # Behavior
-        beh_agg = BehaviorEntry.objects.filter(student_id__in=student_ids).values('student_id').annotate(
-            total_positive=Coalesce(Sum('points', filter=Q(points__gt=0)), Value(0)),
-            total_negative=Coalesce(Sum('points', filter=Q(points__lt=0)), Value(0))
-        )
-        beh_dict = {}
-        for item in beh_agg:
-            beh_dict[item['student_id']] = {'pos': item['total_positive'], 'neg': abs(item['total_negative'])}
+    def fmt_num(n):
+        """Format number: integers without decimals, others 1 decimal."""
+        if isinstance(n, float) and n.is_integer():
+            return int(n)
+        if isinstance(n, int):
+            return n
+        return round(n, 1)
 
-        # Attendance
-        att_agg = AttendanceRecord.objects.filter(
-            student_id__in=student_ids, session__class_obj=class_obj
-        ).values('student_id').annotate(
-            total_sessions=Count('id'),
-            present_count=Count('id', filter=Q(status__in=['present', 'late', 'excused', 'sick']))
-        )
-        att_dict = {}
-        for item in att_agg:
-            total = item['total_sessions']
-            present = item['present_count']
-            att_dict[item['student_id']] = {
-                'summary': f"{present}/{total}" if total > 0 else "0/0",
-                'percentage': (present / total * 100) if total > 0 else 0.0
-            }
-
-        # Academic: semua asesmen
-        assessments = Assessment.objects.filter(class_obj=class_obj)
-        total_max_points = assessments.aggregate(total=Sum('max_points'))['total'] or 0
-
-        scores_qs = Score.objects.filter(student_id__in=student_ids, assessment__in=assessments)
-        student_earned = {}
+    # Per-assessment scores cache
+    assessments = list(
+        Assessment.objects.filter(class_obj=class_obj).order_by('date')
+    )
+    assessment_scores = {}
+    if assessments:
+        scores_qs = Score.objects.filter(
+            student__in=students, assessment__in=assessments
+        ).select_related('assessment')
         for sc in scores_qs:
-            student_earned[sc.student_id] = student_earned.get(sc.student_id, 0) + sc.points_earned
+            key = (sc.student_id, sc.assessment_id)
+            assessment_scores[key] = f"{fmt_num(sc.points_earned)}/{fmt_num(sc.assessment.max_points)}"
 
-        acad_dict = {}
-        for sid in student_ids:
-            earned = student_earned.get(sid, 0)
-            if total_max_points > 0:
-                acad_dict[sid] = (earned / total_max_points) * 100
-            else:
-                acad_dict[sid] = 0.0
+    # Attendance cache (display only)
+    attendance_map = {}
+    if students:
+        attendance_qs = AttendanceRecord.objects.filter(
+            student__in=students, session__class_obj=class_obj
+        )
+        for rec in attendance_qs:
+            sid = rec.student_id
+            if sid not in attendance_map:
+                attendance_map[sid] = {'total': 0, 'present': 0}
+            attendance_map[sid]['total'] += 1
+            if rec.status in ['present', 'late', 'excused', 'sick']:
+                attendance_map[sid]['present'] += 1
 
-        # Skor per asesmen
-        assessment_scores = {}
-        if assessments:
-            scores_for_table = Score.objects.filter(
-                student_id__in=student_ids, assessment__in=assessments
-            ).select_related('assessment')
-            for sc in scores_for_table:
-                key = (sc.student_id, sc.assessment_id)
-                assessment_scores[key] = f"{sc.points_earned}/{sc.assessment.max_points}"
+    # Build rows
+    data = []
+    for idx, student in enumerate(students, 1):
+        status = calculate_behavior_status(student, class_obj)
+        score_data = calculate_final_score(student, class_obj)
 
-        # Bangun baris per siswa
-        for idx, student in enumerate(students, 1):
-            sid = student.id
-            beh = beh_dict.get(sid, {'pos': 0, 'neg': 0})
-            total_pos, total_neg = beh['pos'], beh['neg']
-            net = total_pos - total_neg
-            att_data = att_dict.get(sid, {'summary': '0/0', 'percentage': 0.0})
-            att_pct = att_data['percentage']
-            acad_avg = acad_dict.get(sid, 0.0)
+        att = attendance_map.get(student.id, {'total': 0, 'present': 0})
+        att_summary = f"{att['present']}/{att['total']}" if att['total'] > 0 else "0/0"
 
-            pos_cap = class_obj.positive_behavior_cap or 1
-            neg_cap = class_obj.negative_behavior_cap or 1
-            pos_comp = min((total_pos / pos_cap) * 100, 100)
-            neg_comp = max(100 - (abs(total_neg) / neg_cap) * 100, 0)
-            final = acad_avg * 0.6 + att_pct * 0.15 + pos_comp * 0.15 + neg_comp * 0.1
-            final = min(round(final, 1), 100.0)
+        row = {
+            'No': idx,
+            'Student Name': student.name,
+            'Academic Average': fmt_num(score_data['academic_average']),
+            'Attendance': att_summary,
+            'Positive Points': status['total_positive'],
+            'Negative Points': status['total_negative'],
+            'Available Points': status['available_points'],
+            'Bonus Earned': score_data['bonus'],
+            'Final Score': score_data['final_score'],
+        }
+        for ass in assessments:
+            row[ass.name] = assessment_scores.get((student.id, ass.id), '-')
+        data.append(row)
 
-            row = {
-                'No': idx, 'Nama Siswa': student.name,
-                'Kehadiran': att_data['summary'],
-                'Kehadiran (%)': round(att_pct, 1),
-                'Poin Positif': total_pos, 'Poin Negatif': total_neg, 'Net Poin': net,
-                'Rata-rata Akademik': round(acad_avg, 1), 'Final Score': final,
-            }
-            for ass in assessments:
-                key = (sid, ass.id)
-                row[ass.name] = assessment_scores.get(key, '-')
-            data.append(row)
-
-    # ===== PERBAIKAN: Cek library sebelum membuat Excel =====
+    # ---------- Build Excel ----------
     try:
         import pandas as pd
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -2057,63 +2308,91 @@ def export_class_to_excel(request, class_id):
     except ImportError:
         messages.error(
             request,
-            "Fitur Export Excel memerlukan library pandas dan openpyxl. "
-            "Silakan instal dengan perintah: pip install pandas openpyxl"
+            "Excel export requires pandas and openpyxl. Install with: pip install pandas openpyxl"
         )
         return redirect('dashboard')
 
     df = pd.DataFrame(data)
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="{class_obj.name}_data.xlsx"'
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe_class_name = class_obj.name.replace(' ', '_').replace('/', '-')
+    response['Content-Disposition'] = f'attachment; filename="{safe_class_name}_data.xlsx"'
 
     with pd.ExcelWriter(response, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Data Kelas', index=False)
+        df.to_excel(writer, sheet_name='Class Data', index=False)
         workbook = writer.book
-        worksheet = writer.sheets['Data Kelas']
+        worksheet = writer.sheets['Class Data']
 
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
-        header_alignment = Alignment(horizontal="center", vertical="center")
-        even_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                             top=Side(style='thin'), bottom=Side(style='thin'))
+        # Styles
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        header_fill = PatternFill(start_color="9B1B30", end_color="9B1B30", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        even_fill = PatternFill(start_color="FDF8F4", end_color="FDF8F4", fill_type="solid")
+        thin_border = Border(
+            left=Side(style='thin', color='E5E7EB'),
+            right=Side(style='thin', color='E5E7EB'),
+            top=Side(style='thin', color='E5E7EB'),
+            bottom=Side(style='thin', color='E5E7EB'),
+        )
 
+        # Header row
         for col_idx, col_name in enumerate(df.columns, 1):
             cell = worksheet.cell(row=1, column=col_idx)
-            cell.font, cell.fill, cell.alignment, cell.border = header_font, header_fill, header_alignment, thin_border
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
 
+        # Data rows
+        center_cols = {
+            'No', 'Academic Average', 'Attendance',
+            'Positive Points', 'Negative Points',
+            'Available Points', 'Bonus Earned', 'Final Score',
+        }
         for row_idx in range(2, len(df) + 2):
-            for col_idx in range(1, len(df.columns) + 1):
+            for col_idx, col_name in enumerate(df.columns, 1):
                 cell = worksheet.cell(row=row_idx, column=col_idx)
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = even_fill
-                if col_idx in [1, 3, 4, 5, 6, 7, 8, 9]:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                elif col_idx == 2:
+
+                if col_name == 'Student Name':
                     cell.alignment = Alignment(horizontal="left", vertical="center")
+                elif col_name in center_cols:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
 
+        # Column widths
         for col_idx, col_name in enumerate(df.columns, 1):
             max_length = len(str(col_name))
             for row_idx in range(2, len(df) + 2):
                 val = worksheet.cell(row=row_idx, column=col_idx).value
-                if val:
+                if val is not None:
                     max_length = max(max_length, len(str(val)))
-            adjusted_width = min(max_length + 2, 50)
-            worksheet.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
+            adjusted = min(max_length + 3, 40)
+            worksheet.column_dimensions[get_column_letter(col_idx)].width = adjusted
 
-        worksheet.row_dimensions[1].height = 20
+        worksheet.row_dimensions[1].height = 26
 
+        # Freeze top row
+        worksheet.freeze_panes = 'A2'
+
+        # Footer
         footer_row = len(df) + 3
-        worksheet.cell(row=footer_row, column=1, value=f"Laporan Kelas: {class_obj.name}")
-        worksheet.cell(row=footer_row+1, column=1, value=f"Guru: {request.user.username}")
-        worksheet.cell(row=footer_row+2, column=1, value=f"Tanggal Export: {datetime.now().strftime('%d %B %Y %H:%M:%S')}")
-        worksheet.cell(row=footer_row+3, column=1, value=f"Total Siswa: {len(students)}")
-        for i in range(4):
-            cell = worksheet.cell(row=footer_row + i, column=1)
-            cell.font = Font(italic=True, color="7F8C8D")
+        footer_lines = [
+            f"Class: {class_obj.name} ({class_obj.semester.name})",
+            f"Teacher: {request.user.get_full_name() or request.user.username}",
+            f"Exported: {datetime.now().strftime('%d %B %Y, %H:%M:%S')}",
+            f"Total Students: {len(students)}",
+            "",
+            "Formula: Final Score = Pure Academic Average + Bonus (capped at 100).",
+            "Attendance and behavior points do not affect the academic score.",
+        ]
+        for i, line in enumerate(footer_lines):
+            cell = worksheet.cell(row=footer_row + i, column=1, value=line)
+            cell.font = Font(italic=True, color="6B7280", size=9)
             cell.alignment = Alignment(horizontal="left", vertical="center")
 
     return response
@@ -2238,319 +2517,60 @@ def student_attendance_history(request, class_id):
     }
     return render(request, 'lms/student_attendance_history.html', context)
 
-import secrets
-
-@login_required
-def generate_parent_code(request, student_id):
-    """Menghasilkan (atau mereset) kode akses orang tua untuk seorang siswa."""
-    if request.method != 'POST':
-        return JsonResponse({'status': 'error', 'message': 'Metode tidak diizinkan.'}, status=405)
-
-    try:
-        profile = request.user.profile
-    except UserProfile.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Profil tidak ditemukan.'}, status=403)
-
-    if profile.role != 'teacher':
-        return JsonResponse({'status': 'error', 'message': 'Hanya guru yang bisa.'}, status=403)
-
-    try:
-        student = Student.objects.get(id=student_id)
-    except Student.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Siswa tidak ditemukan.'}, status=404)
-
-    # Buat kode acak 8 karakter
-    new_code = secrets.token_urlsafe(6)[:8]  # 8 karakter cukup
-    student.parent_code = new_code
-    student.save()
-
-    return JsonResponse({
-        'status': 'ok',
-        'code': new_code,
-        'message': f'Kode akses untuk {student.name} berhasil dibuat.'
-    })
-
-from django.contrib import messages as django_messages
-
-def parent_login(request):
-    """Halaman login orang tua (hanya dengan kode akses)"""
-    # Kuras semua pesan lama yang mungkin terbawa dari session lain
-    storage = django_messages.get_messages(request)
-    list(storage)   # mengiterasi semua pesan dan menandainya sebagai "used"
-    # Alternatif: storage.used = True  juga bisa
-
-    if request.method == 'POST':
-        code = request.POST.get('code', '').strip()
-        if not code:
-            django_messages.error(request, 'Please enter an access code.')
-            return redirect('parent_login')
-
-        try:
-            student = Student.objects.get(parent_code=code, is_active=True)
-        except Student.DoesNotExist:
-            django_messages.error(request, 'Invalid code or student is no longer active.')
-            return redirect('parent_login')
-
-        # Simpan student_id di session
-        request.session['parent_student_id'] = student.id
-        return redirect('parent_dashboard')
-
-    return render(request, 'lms/parent_login.html')
-
-
-def parent_dashboard(request):
-    """Halaman dashboard orang tua setelah login"""
-    student_id = request.session.get('parent_student_id')
-    if not student_id:
-        return redirect('parent_login')
-
-    try:
-        student = Student.objects.get(id=student_id, is_active=True)
-    except Student.DoesNotExist:
-        request.session.pop('parent_student_id', None)
-        messages.error(request, 'Siswa tidak ditemukan.')
-        return redirect('parent_login')
-
-    # --- Data Kehadiran (30 hari terakhir) ---
-    from datetime import date, timedelta
-    thirty_days_ago = date.today() - timedelta(days=30)
-
-    # Ambil semua sesi kehadiran untuk kelas-kelas yang diikuti siswa
-    class_ids = Enrollment.objects.filter(student=student, is_active=True).values_list('class_obj_id', flat=True)
-    attendance_sessions = AttendanceSession.objects.filter(
-        class_obj_id__in=class_ids,
-        date__gte=thirty_days_ago
-    ).order_by('-date')
-
-    records = AttendanceRecord.objects.filter(
-        student=student,
-        session__in=attendance_sessions
-    ).select_related('session')
-
-    status_dict = {r.session_id: r.get_status_display() for r in records}
-    attendance_days = []
-    for session in attendance_sessions:
-        status = status_dict.get(session.id, '—')
-        if status != '—':
-            attendance_days.append({
-                'date': session.date,
-                'status': status_dict.get(session.id, '—')
-            })
-
-    # Hitung statistik kehadiran 30 hari
-    total_sessions = len(attendance_sessions)
-    present_count = sum(1 for s in attendance_sessions if status_dict.get(s.id) in ['Present', 'Late', 'Excused', 'Sick'])
-    attendance_percent = (present_count / total_sessions * 100) if total_sessions > 0 else 0
-
-    # --- Poin Perilaku Minggu Ini ---
-    one_week_ago = timezone.now() - timedelta(days=7)
-    recent_behaviors = BehaviorEntry.objects.filter(
-        student=student,
-        timestamp__gte=one_week_ago
-    )
-    pos_weekly = recent_behaviors.filter(points__gt=0).aggregate(total=Sum('points'))['total'] or 0
-    neg_weekly = abs(recent_behaviors.filter(points__lt=0).aggregate(total=Sum('points'))['total'] or 0)
-
-    # --- Feedback Terbaru (tetap diambil, tapi tidak ditampilkan di template) ---
-    latest_feedback = StudentFeedback.objects.filter(
-        student=student
-    ).order_by('-last_updated').first()
-
-    # --- Grafik Perkembangan Nilai (5 asesmen terakhir) ---
-    scores = Score.objects.filter(student=student).select_related('assessment').order_by('-assessment__date')[:5]
-    chart_labels = []
-    chart_data = []
-    for sc in reversed(scores):
-        chart_labels.append(sc.assessment.name[:20])
-        pct = (sc.points_earned / sc.assessment.max_points) * 100
-        chart_data.append(round(pct, 1))
-
-    # ---------- HITUNG FINAL SCORE (GABUNGAN SEMUA KELAS) ----------
-    enrollments = Enrollment.objects.filter(student=student, is_active=True)
-    classes = Class.objects.filter(id__in=class_ids)
-
-    total_max_all = 0
-    total_earned_all = 0
-    for cls in classes:
-        assessments = Assessment.objects.filter(class_obj=cls)
-        total_max = assessments.aggregate(total=Sum('max_points'))['total'] or 0
-        total_max_all += total_max
-        scores = Score.objects.filter(student=student, assessment__in=assessments)
-        earned = scores.aggregate(total=Sum('points_earned'))['total'] or 0
-        total_earned_all += earned
-
-    if total_max_all > 0:
-        academic_avg = (total_earned_all / total_max_all) * 100
-    else:
-        academic_avg = 0.0
-
-    first_enrollment = enrollments.first()
-    if first_enrollment:
-        pos_cap = first_enrollment.class_obj.positive_behavior_cap or 1
-        neg_cap = first_enrollment.class_obj.negative_behavior_cap or 1
-    else:
-        pos_cap = 1
-        neg_cap = 1
-
-    positive_component = min((pos_weekly / pos_cap) * 100, 100) if pos_weekly > 0 else 0
-    negative_component = max(100 - (abs(neg_weekly) / neg_cap) * 100, 0) if neg_weekly > 0 else 100
-
-    final_score = (
-        academic_avg * 0.6 + attendance_percent * 0.15 + positive_component * 0.15 + negative_component * 0.1
-    )
-    final_score = min(round(final_score, 1), 100.0) if total_max_all > 0 else None
-
-    context = {
-        'student': student,
-        'attendance_days': attendance_days,
-        'attendance_percent': round(attendance_percent, 1),
-        'total_sessions': total_sessions,
-        'present_count': present_count,
-        'pos_weekly': pos_weekly,
-        'neg_weekly': neg_weekly,
-        'final_score': final_score,
-        'chart_labels': json.dumps(chart_labels),
-        'chart_data': json.dumps(chart_data),
-        'latest_feedback': latest_feedback,
-    }
-    return render(request, 'lms/parent_dashboard.html', context)
-
-def parent_logout(request):
-    """Logout orang tua, hapus session."""
-    request.session.pop('parent_student_id', None)
-    return redirect('parent_login')
-
-@login_required
-def download_parent_codes(request, class_id):
-    """Mengunduh daftar kode akses orang tua dalam format Excel (XLSX) yang rapi.
-    Setiap siswa otomatis mendapatkan kode jika belum memiliki."""
-
-    try:
-        profile = request.user.profile
-    except UserProfile.DoesNotExist:
-        messages.error(request, "Profile missing.")
-        return redirect('dashboard')
-    if profile.role != 'teacher':
-        messages.error(request, "Only teachers can access.")
-        return redirect('dashboard')
-
-    try:
-        class_obj = Class.objects.get(id=class_id, teacher=request.user)
-    except Class.DoesNotExist:
-        messages.error(request, "Class not found.")
-        return redirect('dashboard')
-
-    enrollments = Enrollment.objects.filter(
-        class_obj=class_obj, is_active=True
-    ).select_related('student').order_by('student__name')
-
-    import secrets
-    data = []
-
-    for idx, enrollment in enumerate(enrollments, 1):
-        student = enrollment.student
-
-        # Jika belum memiliki kode, buatkan otomatis
-        if not student.parent_code:
-            student.parent_code = secrets.token_urlsafe(6)[:8]
-            student.save()
-
-        data.append({
-            'No.': idx,
-            'Student Name': student.name,
-            'Parent Access Code': student.parent_code
-        })
-
-    if not data:
-        messages.warning(request, "No students found in this class.")
-        return redirect('dashboard')
-
-    # Buat DataFrame
-    import pandas as pd
-    df = pd.DataFrame(data)
-
-    # Siapkan response Excel
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename="Parent_Codes_{class_obj.name.replace(' ', '_')}.xlsx"'
-
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-    from openpyxl.utils import get_column_letter
-
-    with pd.ExcelWriter(response, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Parent Codes', index=False)
-        workbook = writer.book
-        worksheet = writer.sheets['Parent Codes']
-
-        # Gaya header
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
-        header_alignment = Alignment(horizontal="center", vertical="center")
-
-        # Gaya isi
-        thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
-
-        # Format header
-        for col_idx, col_name in enumerate(df.columns, 1):
-            cell = worksheet.cell(row=1, column=col_idx)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = header_alignment
-            cell.border = thin_border
-
-        # Format isi
-        for row_idx in range(2, len(df) + 2):
-            for col_idx in range(1, len(df.columns) + 1):
-                cell = worksheet.cell(row=row_idx, column=col_idx)
-                cell.border = thin_border
-
-                if col_idx == 1:   # No.
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                elif col_idx == 2: # Nama
-                    cell.alignment = Alignment(horizontal="left", vertical="center")
-                elif col_idx == 3: # Kode
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        # Lebar kolom
-        col_widths = [6, 30, 22]
-        for i, width in enumerate(col_widths, 1):
-            worksheet.column_dimensions[get_column_letter(i)].width = width
-
-        worksheet.row_dimensions[1].height = 20
-
-    return response
-
 import os
 from django.conf import settings
 from django.core.files.storage import default_storage
 
 @login_required
 def backup_database(request):
-    """Mengunduh file database SQLite sebagai backup."""
+    """
+    Download a SQLite backup AND save a copy to the backups/ folder.
+    Uses copyfile (not copy2) so the backup file gets a fresh mtime.
+    Supports ?ajax=true to return JSON instead of downloading.
+    """
+    import shutil
+    import time as _time
+
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
-        return HttpResponse("Profile missing.", status=403)
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
     if profile.role != 'teacher':
-        return HttpResponse("Access restricted.", status=403)
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
 
     db_path = os.path.abspath(settings.DATABASES['default']['NAME'])
     if not os.path.exists(db_path):
-        return HttpResponse("Database file not found.", status=404)
+        return JsonResponse({'status': 'error', 'message': 'Database file not found.'}, status=404)
 
+    # Save a copy to backups/ folder so the sidebar updates
+    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    backup_filename = f"lms_backup_{timestamp}.sqlite3"
+    backup_path = os.path.join(backup_dir, backup_filename)
+
+    try:
+        # copyfile does NOT preserve mtime → gives us a fresh timestamp
+        shutil.copyfile(db_path, backup_path)
+        # Explicitly touch the file to be 100% sure the mtime is now
+        os.utime(backup_path, None)
+    except Exception as e:
+        print(f"Warning: could not save backup copy: {e}")
+
+    # If AJAX request: return JSON with info
+    if request.GET.get('ajax') == 'true':
+        return JsonResponse({
+            'status': 'ok',
+            'filename': backup_filename,
+            'timestamp': datetime.now().strftime('%d %b %Y, %H:%M'),
+        })
+
+    # Otherwise: stream file for direct download
     with open(db_path, 'rb') as f:
         response = HttpResponse(f.read(), content_type='application/octet-stream')
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        filename = f"backup_db_{timestamp}.sqlite3"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = f'attachment; filename="{backup_filename}"'
         return response
-
 
 import os
 import shutil
@@ -2645,35 +2665,35 @@ def upload_profile_picture(request):
     if not uploaded_file:
         return JsonResponse({'status': 'error', 'message': 'No file uploaded.'})
 
-    # Validasi ukuran (opsional, maks 2 MB)
+        # Size validation (max 2 MB)
     if uploaded_file.size > 2 * 1024 * 1024:
-        return JsonResponse({'status': 'error', 'message': 'File terlalu besar. Maksimal 2 MB.'})
+        return JsonResponse({'status': 'error', 'message': 'File is too large. Maximum size is 2 MB.'})
 
-    # Validasi dengan PIL (import lokal)
+    # Validate with PIL
     try:
         from PIL import Image as PILImage
         img = PILImage.open(uploaded_file)
-        img.verify()                     # pastikan file adalah gambar valid
+        img.verify()
         uploaded_file.seek(0)
         img = PILImage.open(uploaded_file)
         if img.format not in ('JPEG', 'PNG', 'WEBP'):
-            return JsonResponse({'status': 'error', 'message': 'Format gambar harus JPG, PNG, atau WEBP.'})
+            return JsonResponse({'status': 'error', 'message': 'Image format must be JPG, PNG, or WEBP.'})
     except ImportError:
-        return JsonResponse({'status': 'error', 'message': 'Server tidak mendukung pemrosesan gambar (Pillow belum terpasang).'}, status=500)
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': 'File bukan gambar yang valid atau rusak.'})
+        return JsonResponse({'status': 'error', 'message': 'Server does not support image processing (Pillow is not installed).'}, status=500)
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'The file is not a valid image or is corrupted.'})
 
-    # Hapus foto lama jika ada
+    # Remove old picture if exists
     if profile.profile_picture:
         profile.profile_picture.delete(save=False)
 
-    uploaded_file.seek(0)  # reset posisi baca
+    uploaded_file.seek(0)
     profile.profile_picture = uploaded_file
     profile.save()
 
     return JsonResponse({
         'status': 'ok',
-        'message': 'Foto profil berhasil diperbarui.',
+        'message': 'Profile picture updated successfully.',
         'image_url': profile.profile_picture.url
     })
 
@@ -2742,9 +2762,17 @@ def sidebar_info(request):
     if os.path.exists(backup_dir):
         files = [f for f in os.listdir(backup_dir) if f.endswith('.sqlite3')]
         if files:
-            latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(backup_dir, f)))
-            mtime = os.path.getmtime(os.path.join(backup_dir, latest_file))
-            last_backup = datetime.fromtimestamp(mtime).strftime('%d %b %Y, %H:%M')
+            # Sort by actual mtime (not filename), newest first
+            files_with_time = [
+                (f, os.path.getmtime(os.path.join(backup_dir, f)))
+                for f in files
+            ]
+            files_with_time.sort(key=lambda x: x[1], reverse=True)
+            latest_file, mtime = files_with_time[0]
+            # Use timezone-aware local time
+            last_backup = timezone.localtime(
+                timezone.make_aware(datetime.fromtimestamp(mtime))
+            ).strftime('%d %b %Y, %H:%M')
 
     return JsonResponse({
         'class_count': class_count,
