@@ -53,7 +53,9 @@
             </div>
             <div class="sidebar-stat-card">
                 <span class="stat-label"><i class="bi bi-clock"></i> Backup</span>
-                <span class="stat-value badge-value"><span id="sidebarLastBackup">Never</span></span>
+                <span class="stat-value badge-value">
+                    <span id="sidebarLastBackup" class="backup-status-badge backup-status-unknown">Never</span>
+                </span>
             </div>
         </div>
 
@@ -85,6 +87,23 @@
             <span class="item-label">Logout</span>
         </a>
 
+        <!-- STUDENTS -->
+        <div class="sidebar-section-title">Students</div>
+        <a href="{% url 'student_search' %}" class="sidebar-item" title="Search across all semesters (active + archived)">
+            <i class="bi bi-person-vcard-fill" style="color: #9B1B30;"></i>
+            <span class="item-label">Find Student</span>
+        </a>
+        <!-- SEMESTER -->
+        <div class="sidebar-section-title">Semester</div>
+        <a href="{% url 'archive_list' %}" class="sidebar-item">
+            <i class="bi bi-archive-fill" style="color: #6B7280;"></i>
+            <span class="item-label">Semester Archive</span>
+        </a>
+        <a href="{% url 'close_semester' %}" class="sidebar-item" id="closeSemesterLink">
+            <i class="bi bi-lock-fill" style="color: #D97706;"></i>
+            <span class="item-label">Close Semester</span>
+        </a>
+
         <!-- DATA MANAGEMENT -->
         <div class="sidebar-section-title">Data Management</div>
         <button type="button" class="sidebar-item" id="backupDatabaseBtn">
@@ -95,7 +114,6 @@
             <i class="bi bi-shield-check" style="color: var(--andhivie-orange);"></i>
             <span class="item-label">Restore Database</span>
         </button>
-        <div id="restoreStatus" class="mt-1 small"></div>
 
         <!-- FOOTER -->
         <div class="sidebar-footer mt-3">

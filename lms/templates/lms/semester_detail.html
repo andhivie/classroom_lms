@@ -1,0 +1,575 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ semester.name }} — Classroom LMS</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
+    <style>
+        body { background: #FDF8F4; }
+        .detail-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Header */
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .detail-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .detail-title i {
+            color: #9B1B30;
+        }
+        .detail-meta {
+            font-size: 0.85rem;
+            color: #6B7280;
+            margin: 0.35rem 0 0 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .meta-item i {
+            color: #9B1B30;
+            font-size: 0.85rem;
+        }
+
+        /* Status ribbon */
+        .status-ribbon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-ribbon.active {
+            background: #D1FAE5;
+            color: #047857;
+        }
+        .status-ribbon.archived {
+            background: #F3F4F6;
+            color: #4B5563;
+        }
+
+        /* Restore button */
+        .btn-restore-semester {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 0.6rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 8px rgba(5, 150, 105, 0.22);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+        }
+        .btn-restore-semester:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.30);
+        }
+        .btn-restore-semester:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-back-archive {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+        }
+        .btn-back-archive:hover {
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.85rem;
+            padding: 1rem 1.15rem;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+        .stat-card .stat-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: #9CA3AF;
+            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .stat-card .stat-label i {
+            color: #9B1B30;
+            font-size: 0.75rem;
+        }
+        .stat-card .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1F2937;
+            line-height: 1.1;
+        }
+
+        /* Notes box */
+        .notes-box {
+            background: linear-gradient(135deg, #FFFBF0 0%, #FEF6E7 100%);
+            border: 1px solid #FDE68A;
+            border-left: 4px solid #D4B16A;
+            border-radius: 0.85rem;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .notes-box .notes-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: #92400E;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .notes-box .notes-text {
+            font-size: 0.9rem;
+            color: #4B5563;
+            line-height: 1.6;
+            margin: 0;
+            white-space: pre-line;
+        }
+        .notes-box .notes-meta {
+            margin-top: 0.6rem;
+            font-size: 0.78rem;
+            color: #9CA3AF;
+        }
+
+        /* Section header */
+        .section-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            color: #6B7280;
+            margin: 0 0 0.75rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #E8E1DA;
+        }
+
+        /* Class card */
+        .class-item {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.85rem;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            transition: box-shadow 0.15s ease;
+        }
+        .class-item:hover {
+            box-shadow: 0 4px 16px rgba(31, 41, 55, 0.06);
+        }
+        .class-info {
+            flex: 1;
+            min-width: 200px;
+        }
+        .class-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0 0 0.35rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .class-name i {
+            color: #9B1B30;
+            font-size: 0.95rem;
+        }
+        .class-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .stat-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.22em 0.6em;
+            background: #FAF6F1;
+            color: #4B5563;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.4rem;
+            font-size: 0.74rem;
+            font-weight: 600;
+        }
+        .stat-chip i {
+            color: #9B1B30;
+            font-size: 0.72rem;
+        }
+
+        .class-actions {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .btn-class-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.42rem 0.85rem;
+            border-radius: 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1.5px solid;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn-view {
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+            background: transparent;
+        }
+        .btn-view:hover {
+            background: #9B1B30;
+            color: #ffffff;
+            border-color: #9B1B30;
+        }
+        .btn-zip {
+            color: #059669;
+            border-color: rgba(5, 150, 105, 0.35);
+            background: transparent;
+        }
+        .btn-zip:hover {
+            background: #059669;
+            color: #ffffff;
+            border-color: #059669;
+        }
+
+        /* Empty */
+        .empty-state {
+            background: #ffffff;
+            border: 1px dashed #E8E1DA;
+            border-radius: 1rem;
+            text-align: center;
+            padding: 2.5rem 1rem;
+            color: #9CA3AF;
+        }
+        .empty-state i {
+            font-size: 2.5rem;
+            color: #E8E1DA;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Modal buttons */
+        .btn-cancel-restore {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1.15rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-cancel-restore:hover {
+            background: #FAF6F1;
+            color: #1F2937;
+        }
+
+        @media (max-width: 767.98px) {
+            .detail-title { font-size: 1.1rem; }
+            .detail-header { flex-direction: column; align-items: flex-start; }
+            .class-item { flex-direction: column; align-items: flex-start; }
+            .class-actions { width: 100%; }
+            .btn-class-action { flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    {% include 'lms/_navbar.html' %}
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container-fluid mt-3 mb-4">
+        <div class="detail-page">
+
+            <!-- HEADER -->
+            <div class="detail-header">
+                <div>
+                    <h1 class="detail-title">
+                        <i class="bi bi-calendar-range"></i>
+                        {{ semester.name }}
+                    </h1>
+                    <p class="detail-meta">
+                        <span class="meta-item">
+                            <i class="bi bi-calendar3"></i>
+                            {{ semester.start_date|date:"M d, Y" }} &ndash; {{ semester.end_date|date:"M d, Y" }}
+                        </span>
+                        {% if closing %}
+                        <span class="meta-item">
+                            <i class="bi bi-lock-fill"></i>
+                            Closed {{ closing.closed_at|date:"M d, Y" }}
+                        </span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                    {% if is_archived %}
+                        <span class="status-ribbon archived">
+                            <i class="bi bi-archive-fill"></i> Archived
+                        </span>
+                    {% else %}
+                        <span class="status-ribbon active">
+                            <i class="bi bi-broadcast"></i> Active
+                        </span>
+                    {% endif %}
+
+                    {% if is_archived %}
+                    <button type="button"
+                            class="btn-restore-semester"
+                            id="restoreSemesterBtn"
+                            data-semester-id="{{ semester.id }}"
+                            data-semester-name="{{ semester.name }}">
+                        <i class="bi bi-arrow-counterclockwise"></i> Restore Semester
+                    </button>
+                    {% endif %}
+
+                    <a href="{% url 'archive_list' %}" class="btn-back-archive">
+                        <i class="bi bi-arrow-left"></i> Back to Archive
+                    </a>
+                </div>
+            </div>
+
+            <!-- STATS -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-book"></i> Classes</div>
+                    <div class="stat-value">{{ summary.total_classes }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-people"></i> Students</div>
+                    <div class="stat-value">{{ summary.unique_students }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-check2-square"></i> Enrollments</div>
+                    <div class="stat-value">{{ summary.total_students }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-star"></i> Behavior Entries</div>
+                    <div class="stat-value">{{ summary.total_behavior_entries }}</div>
+                </div>
+            </div>
+
+            <!-- CLOSING NOTES -->
+            {% if closing and closing.notes %}
+            <div class="notes-box">
+                <div class="notes-title">
+                    <i class="bi bi-journal-text"></i> Closing Notes
+                </div>
+                <p class="notes-text">{{ closing.notes }}</p>
+                {% if closing.closed_by %}
+                <div class="notes-meta">
+                    Written by {{ closing.closed_by.get_full_name|default:closing.closed_by.username }}
+                    on {{ closing.closed_at|date:"M d, Y, H:i" }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- CLASSES -->
+            <div class="section-label">
+                <i class="bi bi-journal-bookmark-fill" style="color:#9B1B30;"></i>
+                Classes in This Semester ({{ class_list|length }})
+            </div>
+
+            {% if class_list %}
+                {% for item in class_list %}
+                <div class="class-item">
+                    <div class="class-info">
+                        <h3 class="class-name">
+                            <i class="bi bi-book-fill"></i>
+                            {{ item.class.name }}
+                        </h3>
+                        <div class="class-stats">
+                            <span class="stat-chip">
+                                <i class="bi bi-people"></i> {{ item.enrollment_count }} students
+                            </span>
+                            <span class="stat-chip">
+                                <i class="bi bi-journal-check"></i> {{ item.assessment_count }} assessments
+                            </span>
+                        </div>
+                    </div>
+                    <div class="class-actions">
+                        <a href="{% url 'archived_class_detail' item.class.id %}" class="btn-class-action btn-view">
+                            <i class="bi bi-eye-fill"></i> View
+                        </a>
+                        <a href="{% url 'download_class_reports_zip' item.class.id %}" class="btn-class-action btn-zip">
+                            <i class="bi bi-file-zip-fill"></i> Reports
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-journal-x"></i>
+                    <p>No classes in this semester.</p>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- RESTORE SEMESTER MODAL -->
+    <div class="modal fade" id="restoreSemesterModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border:none;border-radius:1rem;overflow:hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color:#fff; border:none; padding:1rem 1.5rem;">
+                    <h5 class="modal-title" style="font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        Restore Semester
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
+                </div>
+                <div class="modal-body" style="padding:1.5rem;">
+                    <p style="font-size:0.95rem;color:#1F2937;">
+                        Restore <strong id="restoreSemName">this semester</strong> to active?
+                    </p>
+                    <div style="background:#F0FDF9;border:1px solid #A7F3D0;border-left:3px solid #059669;border-radius:0.6rem;padding:0.75rem 1rem;font-size:0.85rem;color:#065F46;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        All classes in this semester will become active again.
+                        <br>
+                        <strong>Note:</strong> closing notes will be deleted.
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #F5EDE5; padding:1rem 1.5rem;">
+                    <button type="button" class="btn-cancel-restore" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn-restore-semester" id="confirmRestoreSemesterBtn">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        Yes, Restore Semester
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        const restoreSemBtn = document.getElementById('restoreSemesterBtn');
+        const restoreSemModalEl = document.getElementById('restoreSemesterModal');
+        const restoreSemModal = restoreSemModalEl ? new bootstrap.Modal(restoreSemModalEl) : null;
+        const confirmRestoreSemBtn = document.getElementById('confirmRestoreSemesterBtn');
+
+        if (restoreSemBtn && restoreSemModal) {
+            restoreSemBtn.addEventListener('click', function() {
+                document.getElementById('restoreSemName').textContent = this.dataset.semesterName;
+                restoreSemModal.show();
+            });
+        }
+
+        if (confirmRestoreSemBtn) {
+            confirmRestoreSemBtn.addEventListener('click', async function() {
+                const btn = this;
+                const semesterId = restoreSemBtn.dataset.semesterId;
+                const originalHTML = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Restoring...';
+
+                try {
+                    const res = await fetch(`/semester/${semesterId}/restore/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    const data = await res.json();
+
+                    if (data.status === 'ok') {
+                        if (typeof showNotification === 'function') showNotification(data.message, 'success');
+                        if (typeof addActivityLog === 'function') addActivityLog('Semester restored');
+                        if (restoreSemModal) restoreSemModal.hide();
+                        setTimeout(() => window.location.href = "{% url 'dashboard' %}", 1500);
+                    } else {
+                        if (typeof showNotification === 'function') showNotification(data.message || 'Failed.', 'danger');
+                        btn.disabled = false;
+                        btn.innerHTML = originalHTML;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    if (typeof showNotification === 'function') showNotification('Network error.', 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

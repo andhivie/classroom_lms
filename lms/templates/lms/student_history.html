@@ -1,0 +1,596 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ student.name }} — Student Profile</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        body { background: #FDF8F4; }
+        .profile-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Page header */
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .profile-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .profile-title i {
+            color: #9B1B30;
+            font-size: 1.35rem;
+        }
+        .profile-meta {
+            font-size: 0.88rem;
+            color: #6B7280;
+            margin: 0.35rem 0 0 0;
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            flex-wrap: wrap;
+        }
+        .profile-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .profile-meta i {
+            color: #9B1B30;
+            font-size: 0.85rem;
+        }
+        .btn-back-profile {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            border-radius: 0.6rem;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+        }
+        .btn-back-profile:hover {
+            background: #FAF6F1;
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.85rem;
+            padding: 1.1rem 1.25rem;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #9B1B30 0%, #E07A3D 100%);
+        }
+        .stat-card .stat-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: #9CA3AF;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .stat-card .stat-label i {
+            color: #9B1B30;
+            font-size: 0.8rem;
+        }
+        .stat-card .stat-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: #1F2937;
+            line-height: 1.1;
+        }
+        .stat-card .stat-value.muted {
+            color: #9CA3AF;
+            font-size: 1.3rem;
+        }
+        .stat-card .stat-hint {
+            font-size: 0.75rem;
+            color: #9CA3AF;
+            margin-top: 0.15rem;
+        }
+
+        /* Section */
+        .section-block {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0 0 1.1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title i {
+            color: #9B1B30;
+        }
+
+        /* Chart container */
+        .chart-container {
+            position: relative;
+            height: 260px;
+            width: 100%;
+        }
+
+        /* Timeline table */
+        .timeline-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .timeline-table thead th {
+            background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.68rem;
+            padding: 0.75rem 0.5rem;
+            border: none;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .timeline-table tbody td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #F5EDE5;
+            background: #ffffff;
+            font-size: 0.86rem;
+            color: #1F2937;
+            vertical-align: middle;
+            text-align: center;
+        }
+        .timeline-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .timeline-table tbody tr:hover td {
+            background: #FFFCFA;
+        }
+        .timeline-table td.col-semester {
+            text-align: left;
+            padding-left: 1rem;
+            font-weight: 700;
+            color: #1F2937;
+        }
+        .timeline-table td.col-semester .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        .timeline-table td.col-semester .status-dot.active {
+            background: #059669;
+        }
+        .timeline-table td.col-semester .status-dot.archived {
+            background: #9CA3AF;
+        }
+        .timeline-table td.col-final {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        .timeline-table td.col-final.low { color: #DC2626; }
+        .timeline-table td.col-final.high { color: #1F2937; }
+        .timeline-table td.col-final.empty { color: #D1D5DB; font-weight: 400; }
+
+        .mini-badge {
+            display: inline-block;
+            padding: 0.15em 0.5em;
+            border-radius: 0.35rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+        .mini-badge.positive {
+            background: #D1FAE5;
+            color: #047857;
+        }
+        .mini-badge.negative {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+        .mini-badge.bonus {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: #ffffff;
+        }
+        .mini-badge.muted {
+            background: #F3F4F6;
+            color: #9CA3AF;
+        }
+
+        /* Feedback cards */
+        .feedback-item {
+            background: #FAF6F1;
+            border: 1px solid #F0EAE3;
+            border-left: 4px solid #E07A3D;
+            border-radius: 0.7rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.85rem;
+        }
+        .feedback-item:last-child {
+            margin-bottom: 0;
+        }
+        .feedback-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .feedback-semester {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #7A1526;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .feedback-date {
+            font-size: 0.75rem;
+            color: #9CA3AF;
+        }
+        .feedback-text {
+            font-size: 0.88rem;
+            color: #4B5563;
+            line-height: 1.6;
+            margin: 0;
+            white-space: pre-line;
+        }
+
+        /* Empty feedback */
+        .empty-feedback {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #9CA3AF;
+            font-size: 0.88rem;
+        }
+        .empty-feedback i {
+            font-size: 2rem;
+            color: #E8E1DA;
+            display: block;
+            margin-bottom: 0.6rem;
+        }
+
+        /* Actions per row */
+        .btn-row-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1.5px solid;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn-row-action.pdf {
+            color: #059669;
+            border-color: rgba(5, 150, 105, 0.35);
+        }
+        .btn-row-action.pdf:hover {
+            background: #059669;
+            color: #ffffff;
+        }
+        .btn-row-action.feedback {
+            color: #9B1B30;
+            border-color: rgba(155, 27, 48, 0.35);
+        }
+        .btn-row-action.feedback:hover {
+            background: #9B1B30;
+            color: #ffffff;
+        }
+
+        @media (max-width: 767.98px) {
+            .profile-title { font-size: 1.15rem; }
+            .profile-header { flex-direction: column; align-items: stretch; }
+            .section-block { padding: 1.15rem; }
+            .timeline-table thead th { padding: 0.55rem 0.3rem; font-size: 0.62rem; }
+            .timeline-table tbody td { padding: 0.55rem 0.3rem; font-size: 0.78rem; }
+            .timeline-table td.col-semester { padding-left: 0.6rem; font-size: 0.8rem; }
+            .chart-container { height: 220px; }
+            .stat-card .stat-value { font-size: 1.35rem; }
+        }
+    </style>
+</head>
+<body>
+
+    {% include 'lms/_navbar.html' %}
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container-fluid mt-3 mb-4">
+        <div class="profile-page">
+
+            <!-- HEADER -->
+            <div class="profile-header">
+                <div>
+                    <h1 class="profile-title">
+                        <i class="bi bi-person-badge-fill"></i>
+                        {{ student.name }}
+                        {% if not student.is_active %}
+                        <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2em 0.6em;background:#E5E7EB;color:#6B7280;border-radius:0.4rem;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;margin-left:0.5rem;vertical-align:middle;">
+                            <i class="bi bi-slash-circle-fill" style="font-size:0.6rem;"></i>
+                            Inactive
+                        </span>
+                        {% endif %}
+                    </h1>
+                    <p class="profile-meta">
+                        {% if student.email %}
+                        <span><i class="bi bi-envelope-fill"></i> {{ student.email }}</span>
+                        {% endif %}
+                        <span><i class="bi bi-journal-bookmark-fill"></i> {{ total_semesters }} semester{{ total_semesters|pluralize }}</span>
+                    </p>
+                </div>
+                <a href="{% url 'student_search' %}" class="btn-back-profile">
+                    <i class="bi bi-arrow-left"></i> Back to Search
+                </a>
+            </div>
+
+            <!-- STATS -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-journal-bookmark-fill"></i> Semesters</div>
+                    <div class="stat-value">{{ total_semesters }}</div>
+                    <div class="stat-hint">with you</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-calendar-check"></i> Attendance</div>
+                    <div class="stat-value">{% if overall_attendance_pct %}{{ overall_attendance_pct|floatformat:"-1" }}%{% else %}—{% endif %}</div>
+                    <div class="stat-hint">across all semesters</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-trophy-fill"></i> Avg Final</div>
+                    <div class="stat-value {% if average_final_score is None %}muted{% endif %}">
+                        {% if average_final_score is not None %}{{ average_final_score }}{% else %}—{% endif %}
+                    </div>
+                    <div class="stat-hint">average final score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-gift-fill"></i> Total Bonus</div>
+                    <div class="stat-value">{% if total_bonus %}+{{ total_bonus }}{% else %}0{% endif %}</div>
+                    <div class="stat-hint">from behavior conversions</div>
+                </div>
+            </div>
+
+            <!-- PROGRESS CHART -->
+            {% if has_multiple_semesters %}
+            <div class="section-block">
+                <h2 class="section-title">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    Final Score Progression
+                </h2>
+                <div class="chart-container">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- TIMELINE TABLE -->
+            <div class="section-block">
+                <h2 class="section-title">
+                    <i class="bi bi-clock-history"></i>
+                    Semester Timeline
+                </h2>
+                <div class="table-responsive">
+                    <table class="timeline-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">Semester</th>
+                                <th>Attendance</th>
+                                <th>Behavior</th>
+                                <th>Bonus</th>
+                                <th>Academic Avg</th>
+                                <th>Final</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in timeline %}
+                            <tr>
+                                <td class="col-semester">
+                                    <span class="status-dot {% if item.is_archived %}archived{% else %}active{% endif %}"></span>
+                                    {{ item.semester.name }}
+                                    <div style="font-size:0.72rem;color:#9CA3AF;font-weight:400;padding-left:1.05rem;">
+                                        {{ item.class_obj.name }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {{ item.attendance_summary }}
+                                    <div style="font-size:0.72rem;color:#9CA3AF;">{{ item.attendance_pct|floatformat:"-1" }}%</div>
+                                </td>
+                                <td>
+                                    <span class="mini-badge positive">+{{ item.total_positive }}</span>
+                                    <span class="mini-badge negative">-{{ item.total_negative }}</span>
+                                </td>
+                                <td>
+                                    {% if item.bonus_earned > 0 %}
+                                        <span class="mini-badge bonus">+{{ item.bonus_earned }}</span>
+                                    {% else %}
+                                        <span class="mini-badge muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>{% if item.academic_avg %}{{ item.academic_avg|floatformat:"-1" }}{% else %}—{% endif %}</td>
+                                <td class="col-final {% if item.final_score is None %}empty{% elif item.final_score < 80 %}low{% else %}high{% endif %}">
+                                    {% if item.final_score is not None %}{{ item.final_score }}{% else %}—{% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'generate_report_pdf' student.id item.class_obj.id %}"
+                                       target="_blank"
+                                       class="btn-row-action pdf"
+                                       title="Download PDF">
+                                        <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                                    </a>
+                                    {% if not item.is_archived %}
+                                    <a href="{% url 'student_feedback' student.id item.class_obj.id %}"
+                                       class="btn-row-action feedback"
+                                       title="Open feedback">
+                                        <i class="bi bi-journal-text"></i>
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- FEEDBACK ARCHIVE -->
+            <div class="section-block">
+                <h2 class="section-title">
+                    <i class="bi bi-chat-quote-fill"></i>
+                    Feedback Archive
+                </h2>
+                {% with has_feedback=False %}
+                    {% for item in timeline %}
+                        {% if item.feedback_text %}
+                            <div class="feedback-item">
+                                <div class="feedback-header">
+                                    <span class="feedback-semester">
+                                        <i class="bi bi-journal-bookmark-fill"></i>
+                                        {{ item.semester.name }} &mdash; {{ item.class_obj.name }}
+                                    </span>
+                                    {% if item.feedback_date %}
+                                    <span class="feedback-date">
+                                        <i class="bi bi-clock me-1"></i>{{ item.feedback_date|date:"M d, Y" }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <p class="feedback-text">{{ item.feedback_text }}</p>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endwith %}
+
+                {# Show empty state only if no feedback at all #}
+                {% if not timeline.0.feedback_text and not timeline.1.feedback_text and not timeline.2.feedback_text %}
+                    {% with has_any=False %}
+                        {% for item in timeline %}
+                            {% if item.feedback_text %}{% with has_any=True %}{% endwith %}{% endif %}
+                        {% endfor %}
+                    {% endwith %}
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    {% if has_multiple_semesters %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            const labels = {{ chart_labels|safe }};
+            const data = {{ chart_data|safe }};
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Final Score',
+                        data: data,
+                        borderColor: '#9B1B30',
+                        backgroundColor: 'rgba(155, 27, 48, 0.08)',
+                        borderWidth: 3,
+                        tension: 0.35,
+                        fill: true,
+                        pointBackgroundColor: '#9B1B30',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#7A1526',
+                            padding: 10,
+                            cornerRadius: 8,
+                            titleFont: { size: 12, weight: '600' },
+                            bodyFont: { size: 13, weight: '700' },
+                            callbacks: {
+                                label: function(ctx) {
+                                    return 'Final Score: ' + ctx.parsed.y;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { stepSize: 20 },
+                            grid: { color: '#F5EDE5' },
+                        },
+                        x: {
+                            grid: { display: false },
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

@@ -30,7 +30,7 @@ from lms.constants import STANDARD_ASSESSMENT_TYPES, DAILY_TEST_TYPE
 from .models import (
     Class, UserProfile, Enrollment, Student, AttendanceSession, AttendanceRecord,
     BehaviorEntry, BehaviorCategory, AssessmentType, Assessment, Score,
-    StudentFeedback, Semester
+    StudentFeedback, Semester, ActivityLog
 )
 
 # ---------- Helper Functions ----------
@@ -57,7 +57,7 @@ def dashboard(request):
     if url_class_id and url_class_id.isdigit():
         selected_class_id = int(url_class_id)
 
-    all_classes = Class.objects.filter(teacher=request.user)
+    all_classes = Class.objects.filter(teacher=request.user, is_archived=False)
     if selected_class_id:
         classes = all_classes.filter(id=selected_class_id)
     else:
@@ -1008,6 +1008,552 @@ def reset_class_points(request, class_id):
     })
 
 @login_required
+def close_semester_view(request):
+    """
+    Close the active semester: mark inactive, archive classes, write audit.
+    Accessible to teacher only.
+    """
+    from lms.services.semester_service import close_semester, get_semester_summary
+    from lms.services.backup_service import get_backup_status
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    # Find the active semester(s) this teacher is involved in
+    active_semesters = Semester.objects.filter(
+        is_active=True,
+        classes__teacher=request.user
+    ).distinct()
+
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+    if request.method == 'POST':
+        semester_id = request.POST.get('semester_id')
+        notes = request.POST.get('notes', '').strip()
+
+        if not semester_id:
+            msg = "Please select a semester to close."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('close_semester')
+
+        try:
+            semester = Semester.objects.get(id=semester_id, is_active=True)
+        except Semester.DoesNotExist:
+            msg = "Active semester not found."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('close_semester')
+
+        # Safety: verify teacher has classes in this semester
+        if not Class.objects.filter(semester=semester, teacher=request.user).exists():
+            msg = "You don't have classes in this semester."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('close_semester')
+
+        result = close_semester(semester, user=request.user, notes=notes)
+
+        if not result['success']:
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': result['error']})
+            messages.error(request, result['error'])
+            return redirect('close_semester')
+
+        msg = (
+            f"Semester '{semester.name}' closed successfully. "
+            f"{result['total_classes']} classes archived, "
+            f"{result['total_students']} students kept in history."
+        )
+        if is_ajax:
+            return JsonResponse({
+                'status': 'ok',
+                'message': msg,
+                'backup_created': result['backup_filename'],
+                'total_classes': result['total_classes'],
+                'total_students': result['total_students'],
+            })
+        messages.success(request, msg)
+        return redirect('dashboard')
+
+    # GET — build context
+    summaries = [get_semester_summary(s) for s in active_semesters]
+    backup_status = get_backup_status()
+
+    context = {
+        'active_semesters': summaries,
+        'backup_status': backup_status,
+        'user': request.user,
+    }
+    return render(request, 'lms/semester_close.html', context)
+
+@login_required
+def archive_list_view(request):
+    """
+    List all semesters the teacher has been involved in:
+    - Active semester(s) with green badge
+    - Archived semesters (sorted newest first)
+    Each item shows quick stats.
+    """
+    from lms.services.semester_service import get_semester_summary
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    # Semesters this teacher has classes in
+    semesters = (
+        Semester.objects
+        .filter(classes__teacher=request.user)
+        .distinct()
+        .order_by('-start_date')
+    )
+
+    active_summaries = []
+    archived_summaries = []
+
+    for sem in semesters:
+        summary = get_semester_summary(sem)
+        if sem.is_active:
+            active_summaries.append(summary)
+        else:
+            archived_summaries.append(summary)
+
+    context = {
+        'active_summaries': active_summaries,
+        'archived_summaries': archived_summaries,
+        'total_archived': len(archived_summaries),
+        'user': request.user,
+    }
+    return render(request, 'lms/semester_archive_list.html', context)
+
+
+@login_required
+def semester_detail_view(request, semester_id):
+    """
+    Read-only detail of one semester:
+    - Info & stats
+    - List of classes (archived or active)
+    - Closing notes (if archived)
+    - Actions: download all reports per class
+    """
+    from lms.services.semester_service import get_semester_summary
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    try:
+        semester = Semester.objects.get(id=semester_id)
+    except Semester.DoesNotExist:
+        messages.error(request, "Semester not found.")
+        return redirect('archive_list')
+
+    # Access control: teacher must have at least one class in this semester
+    if not Class.objects.filter(semester=semester, teacher=request.user).exists():
+        messages.error(request, "You don't have classes in this semester.")
+        return redirect('archive_list')
+
+    summary = get_semester_summary(semester)
+
+    # Classes in this semester for this teacher
+    classes = (
+        Class.objects
+        .filter(semester=semester, teacher=request.user)
+        .order_by('name')
+    )
+
+    # Enrich with quick stats
+    class_list = []
+    for cls in classes:
+        enrollment_count = Enrollment.objects.filter(
+            class_obj=cls, is_active=True
+        ).count()
+        assessment_count = Assessment.objects.filter(class_obj=cls).count()
+        class_list.append({
+            'class': cls,
+            'enrollment_count': enrollment_count,
+            'assessment_count': assessment_count,
+        })
+
+    context = {
+        'semester': semester,
+        'summary': summary,
+        'class_list': class_list,
+        'is_archived': not semester.is_active,
+        'closing': summary.get('closing'),
+        'user': request.user,
+    }
+    return render(request, 'lms/semester_detail.html', context)
+
+
+@login_required
+def archived_class_detail_view(request, class_id):
+    """
+    Read-only view of a class in the archive.
+    Shows student list with behavior summary & final score.
+    No add/edit/delete actions.
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    try:
+        class_obj = Class.objects.get(id=class_id, teacher=request.user)
+    except Class.DoesNotExist:
+        messages.error(request, "Class not found.")
+        return redirect('archive_list')
+
+    # Must be archived to enter read-only mode
+    if not class_obj.is_archived:
+        return redirect('dashboard')
+
+    enrollments = (
+        Enrollment.objects
+        .filter(class_obj=class_obj, is_active=True)
+        .select_related('student')
+        .order_by('student__name')
+    )
+
+    students_data = []
+    for enr in enrollments:
+        student = enr.student
+        behavior = calculate_behavior_status(student, class_obj)
+        score = calculate_final_score(student, class_obj)
+
+        # Attendance summary
+        att_records = AttendanceRecord.objects.filter(
+            student=student, session__class_obj=class_obj
+        )
+        total_sessions = att_records.count()
+        present_count = att_records.filter(
+            status__in=['present', 'late', 'excused', 'sick']
+        ).count()
+        attendance_summary = (
+            f"{present_count}/{total_sessions}"
+            if total_sessions > 0 else "0/0"
+        )
+
+        students_data.append({
+            'student': student,
+            'attendance_summary': attendance_summary,
+            'total_positive': behavior['total_positive'],
+            'total_negative': behavior['total_negative'],
+            'available_points': behavior['available_points'],
+            'bonus_earned': behavior['bonus_earned'],
+            'final_score': score['final_score'] if score['has_assessments'] else None,
+            'academic_average': score['academic_average'],
+        })
+
+    context = {
+        'class_obj': class_obj,
+        'semester': class_obj.semester,
+        'students_data': students_data,
+        'total_students': len(students_data),
+        'user': request.user,
+    }
+    return render(request, 'lms/archived_class_detail.html', context)
+
+@login_required
+def student_search_view(request):
+    """
+    Search students across all semesters (active + archived).
+    Teacher can only see students enrolled in their own classes.
+    Inactive students are shown with a badge; can be hidden via checkbox.
+    """
+    from lms.services.behavior_service import calculate_final_score
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    query = request.GET.get('q', '').strip()
+    hide_inactive = request.GET.get('hide_inactive') == 'on'
+
+    results = []
+    total_count = 0
+    inactive_count = 0
+
+    if query:
+        # Base query: students enrolled in this teacher's classes
+        students_qs = (
+            Student.objects
+            .filter(
+                name__icontains=query,
+                enrollments__class_obj__teacher=request.user,
+            )
+            .distinct()
+            .order_by('name')
+        )
+
+        total_count = students_qs.count()
+        inactive_count = students_qs.filter(is_active=False).count()
+
+        # Apply inactive filter if requested
+        if hide_inactive:
+            students_qs = students_qs.filter(is_active=True)
+
+        students = students_qs[:50]
+
+        for student in students:
+            enrollments = (
+                Enrollment.objects
+                .filter(student=student, class_obj__teacher=request.user)
+                .select_related('class_obj', 'class_obj__semester')
+                .order_by('-class_obj__semester__start_date', 'class_obj__name')
+            )
+
+            semesters_data = []
+            for enr in enrollments:
+                cls = enr.class_obj
+                score_data = calculate_final_score(student, cls)
+                semesters_data.append({
+                    'semester': cls.semester,
+                    'class_obj': cls,
+                    'final_score': score_data['final_score'] if score_data['has_assessments'] else None,
+                    'academic_avg': score_data['academic_average'],
+                    'is_archived': cls.is_archived,
+                })
+
+            results.append({
+                'student': student,
+                'enrollments': semesters_data,
+                'semester_count': len(semesters_data),
+                'is_active': student.is_active,
+            })
+
+    context = {
+        'query': query,
+        'results': results,
+        'result_count': len(results),
+        'total_count': total_count,
+        'inactive_count': inactive_count,
+        'hide_inactive': hide_inactive,
+        'user': request.user,
+    }
+    return render(request, 'lms/student_search.html', context)
+
+@login_required
+def student_history_view(request, student_id):
+    """
+    Full historical profile of one student across all semesters
+    that the current teacher has taught them.
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Profile missing.")
+        return redirect('dashboard')
+    if profile.role != 'teacher':
+        messages.error(request, "Only teachers can access.")
+        return redirect('dashboard')
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        messages.error(request, "Student not found.")
+        return redirect('student_search')
+
+    # Access control: teacher must have at least one enrollment with this student
+    enrollments = (
+        Enrollment.objects
+        .filter(student=student, class_obj__teacher=request.user)
+        .select_related('class_obj', 'class_obj__semester')
+        .order_by('-class_obj__semester__start_date', 'class_obj__name')
+    )
+
+    if not enrollments.exists():
+        messages.error(request, "You don't have access to this student's record.")
+        return redirect('student_search')
+
+    timeline = []
+    total_present = 0
+    total_sessions_all = 0
+    final_scores = []
+    total_bonus_all = 0
+
+    for enr in enrollments:
+        cls = enr.class_obj
+        behavior = calculate_behavior_status(student, cls)
+        score_data = calculate_final_score(student, cls)
+
+        # Attendance
+        att_records = AttendanceRecord.objects.filter(
+            student=student, session__class_obj=cls
+        )
+        total_sessions = att_records.count()
+        present_count = att_records.filter(
+            status__in=['present', 'late', 'excused', 'sick']
+        ).count()
+
+        total_present += present_count
+        total_sessions_all += total_sessions
+
+        att_pct = round((present_count / total_sessions * 100), 1) if total_sessions > 0 else 0
+
+        # Feedback for this class
+        feedback = StudentFeedback.objects.filter(
+            student=student, class_obj=cls
+        ).order_by('-last_updated').first()
+
+        final_score_val = score_data['final_score'] if score_data['has_assessments'] else None
+        if final_score_val is not None:
+            final_scores.append(final_score_val)
+
+        total_bonus_all += behavior['bonus_earned']
+
+        timeline.append({
+            'semester': cls.semester,
+            'class_obj': cls,
+            'is_archived': cls.is_archived,
+            'attendance_summary': f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0",
+            'attendance_pct': att_pct,
+            'total_positive': behavior['total_positive'],
+            'total_negative': behavior['total_negative'],
+            'bonus_earned': behavior['bonus_earned'],
+            'academic_avg': score_data['academic_average'],
+            'final_score': final_score_val,
+            'feedback_text': feedback.feedback_text if feedback else '',
+            'feedback_date': feedback.last_updated if feedback else None,
+        })
+
+    # Overall stats
+    overall_att_pct = round((total_present / total_sessions_all * 100), 1) if total_sessions_all > 0 else 0
+    avg_final = round(sum(final_scores) / len(final_scores), 1) if final_scores else None
+
+    # Chart data (chronological order — oldest first)
+    chronological = list(reversed(timeline))
+    chart_labels = [f"{item['semester'].name}" for item in chronological]
+    chart_data = [
+        item['final_score'] if item['final_score'] is not None else 0
+        for item in chronological
+    ]
+
+    context = {
+        'student': student,
+        'timeline': timeline,
+        'total_semesters': len(timeline),
+        'overall_attendance_pct': overall_att_pct,
+        'average_final_score': avg_final,
+        'total_bonus': total_bonus_all,
+        'has_multiple_semesters': len(timeline) > 1,
+        'chart_labels': json.dumps(chart_labels),
+        'chart_data': json.dumps(chart_data),
+        'user': request.user,
+    }
+    return render(request, 'lms/student_history.html', context)
+
+@login_required
+def restore_semester_view(request, semester_id):
+    """Restore an archived semester back to active."""
+    from lms.services.semester_service import restore_semester
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        semester = Semester.objects.get(id=semester_id)
+    except Semester.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Semester not found.'}, status=404)
+
+    # Access control
+    if not Class.objects.filter(semester=semester, teacher=request.user).exists():
+        return JsonResponse({'status': 'error', 'message': 'Not allowed.'}, status=403)
+
+    result = restore_semester(semester, user=request.user)
+
+    if not result['success']:
+        return JsonResponse({'status': 'error', 'message': result['error']})
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': f"Semester '{semester.name}' restored. {result['class_count']} classes are active again.",
+        'class_count': result['class_count'],
+    })
+
+
+@login_required
+def restore_class_view(request, class_id):
+    """Restore a single archived class back to active."""
+    from lms.services.semester_service import restore_class
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        class_obj = Class.objects.get(id=class_id, teacher=request.user)
+    except Class.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Class not found.'}, status=404)
+
+    result = restore_class(class_obj, user=request.user)
+
+    if not result['success']:
+        return JsonResponse({'status': 'error', 'message': result['error']})
+
+    message = f"Class '{class_obj.name}' restored to active."
+    if result.get('semester_restored'):
+        message += f" Semester '{result['semester_name']}' is now active again."
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': message,
+        'semester_restored': result.get('semester_restored', False),
+    })
+
+@login_required
 def class_settings(request, class_id):
     """
     Allow the teacher to configure behavior settings for a specific class.
@@ -1196,7 +1742,7 @@ def charts(request):
         messages.error(request, "Only teachers can access.")
         return redirect('dashboard')
 
-    all_classes = Class.objects.filter(teacher=request.user)
+    all_classes = Class.objects.filter(teacher=request.user, is_archived=False)
 
     selected_class_id = request.GET.get('class_id')
     if selected_class_id == '':
@@ -2415,6 +2961,12 @@ def reset_class_data(request, class_id):
 
     delete_students = request.POST.get('delete_students', 'false').lower() == 'true'
 
+    # Create a backup before destructive operation
+    from lms.services.backup_service import create_backup
+    create_backup(reason='pre_reset_class', rotate=False)
+
+    delete_students = request.POST.get('delete_students', 'false').lower() == 'true'
+    
     AttendanceSession.objects.filter(class_obj=class_obj).delete()
     assessments = Assessment.objects.filter(class_obj=class_obj)
     Score.objects.filter(assessment__in=assessments).delete()
@@ -2538,39 +3090,81 @@ def backup_database(request):
     if profile.role != 'teacher':
         return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
 
-    db_path = os.path.abspath(settings.DATABASES['default']['NAME'])
-    if not os.path.exists(db_path):
-        return JsonResponse({'status': 'error', 'message': 'Database file not found.'}, status=404)
+    db_path = str(settings.DATABASES['default']['NAME'])
+    if not os.path.isabs(db_path):
+        db_path = os.path.abspath(db_path)
 
-    # Save a copy to backups/ folder so the sidebar updates
-    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
-    os.makedirs(backup_dir, exist_ok=True)
-
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    backup_filename = f"lms_backup_{timestamp}.sqlite3"
-    backup_path = os.path.join(backup_dir, backup_filename)
-
+    # ---- 1. Validasi file yang diupload ----
+    temp_path = db_path + '.restore_temp'
     try:
-        # copyfile does NOT preserve mtime → gives us a fresh timestamp
-        shutil.copyfile(db_path, backup_path)
-        # Explicitly touch the file to be 100% sure the mtime is now
-        os.utime(backup_path, None)
-    except Exception as e:
-        print(f"Warning: could not save backup copy: {e}")
+        with open(temp_path, 'wb+') as dest:
+            for chunk in uploaded_file.chunks():
+                dest.write(chunk)
 
-    # If AJAX request: return JSON with info
-    if request.GET.get('ajax') == 'true':
+        # Validate as SQLite
+        conn = sqlite3.connect(temp_path)
+        conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        conn.close()
+    except Exception as e:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
         return JsonResponse({
-            'status': 'ok',
-            'filename': backup_filename,
-            'timestamp': datetime.now().strftime('%d %b %Y, %H:%M'),
+            'status': 'error',
+            'message': f'Uploaded file is not a valid SQLite database: {str(e)}'
         })
 
-    # Otherwise: stream file for direct download
-    with open(db_path, 'rb') as f:
-        response = HttpResponse(f.read(), content_type='application/octet-stream')
-        response['Content-Disposition'] = f'attachment; filename="{backup_filename}"'
-        return response
+    # ---- 2. Pre-restore backup via service ----
+    from lms.services.backup_service import create_backup
+    backup_result = create_backup(reason='pre_restore', rotate=False)
+    backup_filename = backup_result.get('filename') if backup_result.get('success') else None
+    if not backup_result.get('success'):
+        print(f"Warning: Could not create backup before restore: {backup_result.get('error')}")
+
+    # ---- 3. Close ALL Django DB connections so the file is not locked ----
+    from django.db import connections
+    for conn in connections.all():
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    # ---- 4. Replace the database file ----
+    # On Windows, os.replace requires the target file to not be open.
+    # If replace fails, fall back to copyfile + remove.
+    try:
+        try:
+            os.replace(temp_path, db_path)
+        except OSError:
+            # Fallback: copy content over existing file
+            import shutil
+            shutil.copyfile(temp_path, db_path)
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+    except Exception as e:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        return JsonResponse({
+            'status': 'error',
+            'message': (
+                f'Failed to replace database: {str(e)}. '
+                'Try stopping the server, replacing db.sqlite3 manually, '
+                'then start the server again.'
+            )
+        })
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Database restored successfully. Please restart the server manually to apply changes fully.',
+        'backup_created': backup_filename,
+    })
 
 import os
 import shutil
@@ -2582,7 +3176,10 @@ from django.contrib.auth.decorators import login_required
 
 @login_required
 def restore_database(request):
-    """Menerima upload file database untuk me-restore data dengan aman."""
+    """
+    Restore database by copying content from uploaded file into the live DB.
+    Uses SQLite's native backup API — safe on Windows (no file replacement).
+    """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Method not allowed.'}, status=405)
 
@@ -2600,57 +3197,86 @@ def restore_database(request):
     if not uploaded_file.name.endswith('.sqlite3'):
         return JsonResponse({'status': 'error', 'message': 'Invalid file format. Must be .sqlite3'})
 
-    db_path = settings.DATABASES['default']['NAME']
+    db_path = str(settings.DATABASES['default']['NAME'])
     if not os.path.isabs(db_path):
         db_path = os.path.abspath(db_path)
 
-    # ---- 1. Validasi file yang diupload (cek apakah bisa dibuka sebagai SQLite) ----
-    temp_path = db_path + '.restore_temp'
+    # ---- 1. Save uploaded file to temp and validate as SQLite ----
+    temp_path = db_path + '.upload_temp'
     try:
         with open(temp_path, 'wb+') as dest:
             for chunk in uploaded_file.chunks():
                 dest.write(chunk)
-        
-        # Coba buka sebagai SQLite
-        conn = sqlite3.connect(temp_path)
-        conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        conn.close()
+
+        # Validate: can it be opened as SQLite and has tables?
+        test_conn = sqlite3.connect(temp_path)
+        cur = test_conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cur.fetchall()
+        test_conn.close()
+        if not tables:
+            raise ValueError('Uploaded file contains no tables.')
     except Exception as e:
-        # Bersihkan file sementara jika gagal
         if os.path.exists(temp_path):
-            os.remove(temp_path)
-        return JsonResponse({'status': 'error', 'message': f'Uploaded file is not a valid SQLite database: {str(e)}'})
-
-    # ---- 2. Buat backup database saat ini sebelum menimpa ----
-    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
-    os.makedirs(backup_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_path = os.path.join(backup_dir, f'backup_before_restore_{timestamp}.sqlite3')
-    try:
-        if os.path.exists(db_path):
-            shutil.copy2(db_path, backup_path)
-    except Exception as e:
-        # Gagal backup jangan hentikan proses, tapi beri peringatan di log
-        print(f"Warning: Could not create backup before restore: {e}")
-
-    # ---- 3. Ganti file database secara atomik ----
-    try:
-        os.replace(temp_path, db_path)  # atomic pada sistem file yang sama
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
         return JsonResponse({
-            'status': 'ok',
-            'message': 'Database restored successfully. Please restart the server manually to apply changes fully.',
-            'backup_created': os.path.basename(backup_path) if os.path.exists(backup_path) else None
+            'status': 'error',
+            'message': f'Uploaded file is not a valid SQLite database: {str(e)}'
         })
+
+    # ---- 2. Pre-restore backup via service ----
+    from lms.services.backup_service import create_backup
+    backup_result = create_backup(reason='pre_restore', rotate=False)
+    backup_filename = backup_result.get('filename') if backup_result.get('success') else None
+    if not backup_result.get('success'):
+        print(f"Warning: Could not create backup before restore: {backup_result.get('error')}")
+
+    # ---- 3. Close Django connections to release any locks ----
+    from django.db import connections
+    for conn in connections.all():
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    # ---- 4. Write contents of uploaded file INTO live DB via SQLite backup API ----
+    # This does NOT replace the file, so no Windows file-lock issue.
+    try:
+        src = sqlite3.connect(temp_path)   # uploaded backup
+        dst = sqlite3.connect(db_path)     # live database
+        with dst:
+            src.backup(dst)                # copy everything
+        dst.close()
+        src.close()
     except Exception as e:
-        # Jika gagal mengganti, bersihkan temp
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        return JsonResponse({'status': 'error', 'message': f'Failed to replace database: {str(e)}'})
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Restore failed: {str(e)}'
+        })
+    finally:
+        # Clean up uploaded temp file
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Database restored successfully. Please restart the server manually to apply changes fully.',
+        'backup_created': backup_filename,
+    })
     
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import io
 
-@login_required
 @login_required
 def upload_profile_picture(request):
     if request.method != 'POST':
@@ -2715,7 +3341,35 @@ def delete_profile_picture(request):
         return JsonResponse({'status': 'ok', 'message': 'Profile picture removed.'})
     else:
         return JsonResponse({'status': 'error', 'message': 'No profile picture to delete.'})
-    
+
+@login_required
+def log_activity(request):
+    """Record an activity log entry for the current teacher."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    action = request.POST.get('action', '').strip()
+    if not action:
+        return JsonResponse({'status': 'error', 'message': 'Action required.'}, status=400)
+
+    # Truncate to model max length
+    if len(action) > 255:
+        action = action[:255]
+
+    ActivityLog.objects.create(teacher=request.user, action=action)
+
+    # Cleanup: keep only the latest 100 entries per teacher
+    keep_ids = list(
+        ActivityLog.objects
+        .filter(teacher=request.user)
+        .order_by('-timestamp')
+        .values_list('id', flat=True)[:100]
+    )
+    if keep_ids:
+        ActivityLog.objects.filter(teacher=request.user).exclude(id__in=keep_ids).delete()
+
+    return JsonResponse({'status': 'ok'})
+
 @login_required
 def sidebar_info(request):
     import os
@@ -2727,7 +3381,7 @@ def sidebar_info(request):
         return JsonResponse({'error': 'Profile missing'}, status=403)
 
     # Semua kelas guru
-    classes_to_check = Class.objects.filter(teacher=request.user)
+    classes_to_check = Class.objects.filter(teacher=request.user, is_archived=False)
 
     # Hitung asesmen pending + grouping per kelas
     assessments_in_scope = Assessment.objects.filter(class_obj__in=classes_to_check)
@@ -2757,28 +3411,34 @@ def sidebar_info(request):
     class_count = classes_to_check.count()
     title = dict(UserProfile.ROLE_CHOICES).get(profile.role, 'Teacher')
 
-    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
-    last_backup = None
-    if os.path.exists(backup_dir):
-        files = [f for f in os.listdir(backup_dir) if f.endswith('.sqlite3')]
-        if files:
-            # Sort by actual mtime (not filename), newest first
-            files_with_time = [
-                (f, os.path.getmtime(os.path.join(backup_dir, f)))
-                for f in files
-            ]
-            files_with_time.sort(key=lambda x: x[1], reverse=True)
-            latest_file, mtime = files_with_time[0]
-            # Use timezone-aware local time
-            last_backup = timezone.localtime(
-                timezone.make_aware(datetime.fromtimestamp(mtime))
-            ).strftime('%d %b %Y, %H:%M')
+    from lms.services.backup_service import get_backup_status
+    backup_status = get_backup_status()
+    last_backup = backup_status['last_backup_str'] if backup_status['last_backup_str'] != 'Never' else None
+
+        # Recent activity from database (latest 5)
+    recent_logs = (
+        ActivityLog.objects
+        .filter(teacher=request.user)
+        .order_by('-timestamp')[:5]
+        .values('action', 'timestamp')
+    )
+    recent_activity = [
+        {
+            'action': log['action'],
+            'time': timezone.localtime(log['timestamp']).strftime('%I:%M %p'),
+        }
+        for log in recent_logs
+    ]
 
     return JsonResponse({
         'class_count': class_count,
         'title': title,
         'last_backup': last_backup,
+        'backup_health': backup_status['health'],
+        'backup_age_hours': backup_status['age_hours'],
+        'backup_count': backup_status['count'],
         'missing_assessments_count': missing_count,
         'first_missing_class_id': first_missing_class_id,
         'pending_by_class': pending_by_class,
+        'recent_activity': recent_activity,
     })

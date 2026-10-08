@@ -58,6 +58,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'lms.middleware.AutoBackupMiddleware',
 ]
 
 ROOT_URLCONF = 'classroom_lms.urls'
@@ -111,7 +112,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # ----------------------------------------------------------------
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Jakarta'
 USE_I18N = True
 USE_TZ = True
 
@@ -140,3 +141,27 @@ LOGIN_REDIRECT_URL = '/'
 # Default primary key field type
 # ----------------------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ----------------------------------------------------------------
+# Automatic Backup Configuration
+# ----------------------------------------------------------------
+AUTO_BACKUP_ENABLED = os.getenv('AUTO_BACKUP_ENABLED', 'True').strip().lower() == 'true'
+AUTO_BACKUP_INTERVAL_HOURS = int(os.getenv('AUTO_BACKUP_INTERVAL_HOURS', '24'))
+AUTO_BACKUP_RETENTION = int(os.getenv('AUTO_BACKUP_RETENTION', '14'))
+
+# Logging (optional but useful)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'lms': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}

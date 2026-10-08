@@ -19,6 +19,7 @@ class Class(models.Model):
     schedule = models.CharField(max_length=255, blank=True)
     positive_behavior_cap = models.IntegerField(default=5, help_text="Max positive points for 100%")
     negative_behavior_cap = models.IntegerField(default=5, help_text="Max negative points for 0% contribution")
+    is_archived = models.BooleanField(default=False, db_index=True, help_text="Set True when semester is closed")
 
     # ----- Priority 2: Behavior Point System configuration -----
     min_points_for_daily_test = models.IntegerField(
@@ -202,6 +203,32 @@ class ActivityLog(models.Model):
     action = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
 
+class SemesterClosing(models.Model):
+    """
+    Record of a semester being closed. Stores audit trail and stats snapshot.
+    """
+    semester = models.OneToOneField(
+        Semester,
+        on_delete=models.CASCADE,
+        related_name='closing_record'
+    )
+    closed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    closed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        help_text="Teacher who closed the semester"
+    )
+    total_classes = models.IntegerField(default=0)
+    total_students = models.IntegerField(default=0)
+    total_behavior_entries = models.IntegerField(default=0)
+    notes = models.TextField(blank=True, help_text="Notes for reference")
+
+    class Meta:
+        ordering = ['-closed_at']
+
+    def __str__(self):
+        return f"Closing of {self.semester.name} on {self.closed_at.strftime('%d %b %Y')}"
 
 class BehaviorConversion(models.Model):
     """

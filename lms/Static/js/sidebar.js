@@ -33,20 +33,31 @@ if (typeof showNotification === 'undefined') {
     };
 }
 
-// --- Activity Log (localStorage) ---
+// --- Activity Log (database) ---
 function addActivityLog(action) {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const logs = JSON.parse(localStorage.getItem('activityLog') || '[]');
-    logs.unshift({ action, time: timeStr });
-    if (logs.length > 20) logs.pop();
-    localStorage.setItem('activityLog', JSON.stringify(logs));
+    if (!action) return;
 
-    renderActivityLog(logs);
+    fetch('/activity-log/add/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({ action: action })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            // Refresh sidebar info to pull updated recent_activity from DB
+            updateSidebarInfo();
+        }
+    })
+    .catch(err => console.error('Activity log error:', err));
 }
 window.addActivityLog = addActivityLog;
 
-// --- Render activity log ---
+// --- Render activity log from server data ---
 function renderActivityLog(logs) {
     const logContainer = document.getElementById('recentActivityList');
     if (!logContainer) return;
@@ -65,10 +76,19 @@ function renderActivityLog(logs) {
         logContainer.innerHTML += `
             <div class="activity-line">
                 <i class="bi bi-dot"></i>
-                <span>${log.action}</span>
+                <span>${escapeHtmlSidebar(log.action)}</span>
                 <span class="activity-time">${log.time}</span>
             </div>`;
     });
+}
+
+// Escape helper (unique name to avoid conflict with dashboard.js)
+function escapeHtmlSidebar(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 // --- Update sidebar info (stats + notifications + activity) ---
@@ -94,7 +114,24 @@ function updateSidebarInfo() {
             }
             const backupEl = document.getElementById('sidebarLastBackup');
             if (backupEl) {
-                backupEl.textContent = data.last_backup || 'Never';
+                const health = data.backup_health || 'none';
+
+                // Clear existing health classes
+                backupEl.classList.remove(
+                    'backup-status-healthy',
+                    'backup-status-warning',
+                    'backup-status-old',
+                    'backup-status-none',
+                    'backup-status-unknown'
+                );
+
+                if (data.last_backup) {
+                    backupEl.textContent = data.last_backup;
+                    backupEl.classList.add(`backup-status-${health}`);
+                } else {
+                    backupEl.textContent = 'Never';
+                    backupEl.classList.add('backup-status-none');
+                }
             }
 
             // ----- Notifications: missing assessments -----
@@ -150,9 +187,8 @@ function updateSidebarInfo() {
                 }
             }
 
-            // ----- Recent activity -----
-            const logs = JSON.parse(localStorage.getItem('activityLog') || '[]');
-            renderActivityLog(logs);
+            // ----- Recent activity (from server) -----
+            renderActivityLog(data.recent_activity || []);
         })
         .catch(err => console.error('Sidebar info error:', err));
 }
@@ -250,6 +286,9 @@ const restoreDatabaseBtn = document.getElementById('restoreDatabaseBtn');
 const confirmRestoreBtn = document.getElementById('confirmRestoreBtn');
 let restoreModal;
 
+// Simpan file yang dipilih di variabel global — jangan baca ulang dari input
+let selectedRestoreFile = null;
+
 document.addEventListener('DOMContentLoaded', function () {
     const restoreModalEl = document.getElementById('restoreConfirmModal');
     if (restoreModalEl) {
@@ -265,20 +304,42 @@ if (restoreDatabaseBtn) {
 
 if (restoreFileInput) {
     restoreFileInput.addEventListener('change', function () {
-        if (restoreFileInput.files.length > 0 && restoreModal) restoreModal.show();
+        const file = restoreFileInput.files[0];
+        if (!file) return;
+
+        // Validate extension
+        if (!file.name.toLowerCase().endsWith('.sqlite3')) {
+            showNotification('Invalid file format. Must be .sqlite3', 'danger');
+            restoreFileInput.value = '';
+            return;
+        }
+
+        // Save file to global variable
+        selectedRestoreFile = file;
+        console.log('File selected for restore:', file.name, `(${Math.round(file.size / 1024)} KB)`);
+
+        if (restoreModal) restoreModal.show();
     });
 }
 
 if (confirmRestoreBtn) {
     confirmRestoreBtn.addEventListener('click', function () {
-        const file = restoreFileInput.files[0];
+        // Use the saved file, not the input value
+        const file = selectedRestoreFile;
+
         if (!file) {
             showNotification('Please select a backup file first.', 'warning');
+            if (restoreFileInput) restoreFileInput.click();
             return;
         }
 
         const formData = new FormData();
-        formData.append('database', file);
+        formData.append('database', file, file.name);
+
+        const btn = this;
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Restoring...';
 
         fetch('/restore-database/', {
             method: 'POST',
@@ -288,34 +349,46 @@ if (confirmRestoreBtn) {
             },
             body: formData
         })
-            .then(res => res.json())
-            .then(data => {
-                const statusDiv = document.getElementById('restoreStatus');
-                if (data.status === 'ok') {
-                    if (statusDiv) {
-                        statusDiv.innerHTML = '<div class="alert alert-success py-2 small">✅ ' + data.message + '</div>';
-                    }
-                    addActivityLog('Database restored');
-                } else {
-                    if (statusDiv) {
-                        statusDiv.innerHTML = '<div class="alert alert-danger py-2 small">❌ ' + data.message + '</div>';
-                    }
-                }
-                if (restoreModal) restoreModal.hide();
-            })
-            .catch(err => {
-                console.error(err);
-                const statusDiv = document.getElementById('restoreStatus');
-                if (statusDiv) {
-                    statusDiv.innerHTML = '<div class="alert alert-danger py-2 small">Network error.</div>';
-                }
-            })
-            .finally(() => { if (restoreFileInput) restoreFileInput.value = ''; });
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(data => {
+                    throw new Error(data.message || 'Server error ' + res.status);
+                }).catch(() => {
+                    throw new Error('Server error ' + res.status);
+                });
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.status === 'ok') {
+                showNotification(data.message, 'success');
+                addActivityLog('Database restored');
+                selectedRestoreFile = null;
+            } else {
+                showNotification(data.message, 'danger');
+            }
+            if (restoreModal) restoreModal.hide();
+        })
+        .catch(err => {
+            console.error('Restore error:', err);
+            const errMsg = err.message || 'Network error.';
+            showNotification(errMsg, 'danger');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (restoreFileInput) restoreFileInput.value = '';
+            selectedRestoreFile = null;
+        });
     });
 }
 
+// Reset file state only when modal is fully closed AND restore succeeded or user cancels
 document.getElementById('restoreConfirmModal')?.addEventListener('hidden.bs.modal', function () {
+    // If success, clear the file
+    // If user cancels (dismissed), also clear
     if (restoreFileInput) restoreFileInput.value = '';
+    selectedRestoreFile = null;
 });
 
 // --- Sidebar events: load info on open ---

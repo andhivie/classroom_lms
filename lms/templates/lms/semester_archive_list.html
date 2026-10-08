@@ -1,0 +1,345 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semester Archive — Classroom LMS</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
+    <style>
+        body { background: #FDF8F4; }
+        .archive-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .archive-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .archive-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .archive-title i {
+            color: #9B1B30;
+        }
+        .archive-subtitle {
+            font-size: 0.88rem;
+            color: #6B7280;
+            margin: 0.3rem 0 0 0;
+        }
+
+        /* Section header */
+        .section-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            color: #6B7280;
+            margin: 1.75rem 0 0.75rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #E8E1DA;
+        }
+
+        /* Semester card */
+        .semester-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.25rem;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+        .semester-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
+            border-color: rgba(155, 27, 48, 0.25);
+            color: inherit;
+        }
+        .semester-card.active {
+            border-left: 5px solid #059669;
+            background: linear-gradient(to right, #F0FDF9 0%, #ffffff 30%);
+        }
+        .semester-card.archived {
+            border-left: 5px solid #D4CCC3;
+        }
+
+        .semester-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .semester-name-row {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 0.35rem;
+            flex-wrap: wrap;
+        }
+        .semester-name {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2em 0.6em;
+            border-radius: 0.4rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.active {
+            background: #D1FAE5;
+            color: #047857;
+        }
+        .status-badge.archived {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+
+        .semester-dates {
+            font-size: 0.82rem;
+            color: #6B7280;
+            margin: 0 0 0.6rem 0;
+        }
+
+        .semester-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .stat-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25em 0.65em;
+            background: #FAF6F1;
+            color: #4B5563;
+            border: 1px solid #F0EAE3;
+            border-radius: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .stat-chip i {
+            color: #9B1B30;
+            font-size: 0.75rem;
+        }
+
+        .semester-arrow {
+            color: #D4CCC3;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+        .semester-card:hover .semester-arrow {
+            color: #9B1B30;
+            transform: translateX(4px);
+        }
+
+        .closing-notes-preview {
+            font-size: 0.78rem;
+            color: #9CA3AF;
+            margin-top: 0.5rem;
+            font-style: italic;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.35rem;
+        }
+        .closing-notes-preview i {
+            color: #D4B16A;
+            margin-top: 0.15rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            background: #ffffff;
+            border: 1px dashed #E8E1DA;
+            border-radius: 1rem;
+            text-align: center;
+            padding: 2.5rem 1rem;
+            color: #9CA3AF;
+        }
+        .empty-state i {
+            font-size: 2.5rem;
+            color: #E8E1DA;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+        .empty-state h6 {
+            color: #4B5563;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+        .empty-state p {
+            margin: 0;
+            font-size: 0.88rem;
+        }
+
+        @media (max-width: 767.98px) {
+            .archive-title { font-size: 1.1rem; }
+            .semester-card {
+                padding: 1rem;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .semester-arrow {
+                align-self: flex-end;
+                margin-top: -1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    {% include 'lms/_navbar.html' %}
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container-fluid mt-3 mb-4">
+        <div class="archive-page">
+
+            <!-- HEADER -->
+            <div class="archive-header">
+                <div>
+                    <h1 class="archive-title">
+                        <i class="bi bi-archive-fill"></i>
+                        Semester Archive
+                    </h1>
+                    <p class="archive-subtitle">
+                        All your semesters &mdash; active and archived
+                    </p>
+                </div>
+                <a href="{% url 'dashboard' %}" class="btn-back-header" style="background:#fff;border:1.5px solid #E8E1DA;color:#6B7280;border-radius:0.6rem;padding:0.5rem 1rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:0.4rem;font-size:0.85rem;">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+
+            <!-- ACTIVE SEMESTERS -->
+            {% if active_summaries %}
+                <div class="section-label">
+                    <i class="bi bi-broadcast" style="color:#059669;"></i>
+                    Active
+                </div>
+                {% for summary in active_summaries %}
+                <a href="{% url 'semester_detail' summary.semester.id %}" class="semester-card active">
+                    <div class="semester-info">
+                        <div class="semester-name-row">
+                            <h3 class="semester-name">{{ summary.semester.name }}</h3>
+                            <span class="status-badge active">
+                                <i class="bi bi-circle-fill" style="font-size:0.5rem;"></i> Active
+                            </span>
+                        </div>
+                        <p class="semester-dates">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            {{ summary.semester.start_date|date:"M d, Y" }} &ndash; {{ summary.semester.end_date|date:"M d, Y" }}
+                        </p>
+                        <div class="semester-stats">
+                            <span class="stat-chip">
+                                <i class="bi bi-book"></i> {{ summary.total_classes }} classes
+                            </span>
+                            <span class="stat-chip">
+                                <i class="bi bi-people"></i> {{ summary.total_students }} enrollments
+                            </span>
+                        </div>
+                    </div>
+                    <i class="bi bi-chevron-right semester-arrow"></i>
+                </a>
+                {% endfor %}
+            {% endif %}
+
+            <!-- ARCHIVED SEMESTERS -->
+            <div class="section-label">
+                <i class="bi bi-archive" style="color:#6B7280;"></i>
+                Archived ({{ total_archived }})
+            </div>
+
+            {% if archived_summaries %}
+                {% for summary in archived_summaries %}
+                <a href="{% url 'semester_detail' summary.semester.id %}" class="semester-card archived">
+                    <div class="semester-info">
+                        <div class="semester-name-row">
+                            <h3 class="semester-name">{{ summary.semester.name }}</h3>
+                            <span class="status-badge archived">
+                                <i class="bi bi-archive-fill" style="font-size:0.65rem;"></i> Archived
+                            </span>
+                        </div>
+                        <p class="semester-dates">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            {{ summary.semester.start_date|date:"M d, Y" }} &ndash; {{ summary.semester.end_date|date:"M d, Y" }}
+                            {% if summary.closing %}
+                            &nbsp;·&nbsp;
+                            <i class="bi bi-lock-fill me-1"></i>
+                            Closed {{ summary.closing.closed_at|date:"M d, Y" }}
+                            {% endif %}
+                        </p>
+                        <div class="semester-stats">
+                            <span class="stat-chip">
+                                <i class="bi bi-book"></i> {{ summary.total_classes }} classes
+                            </span>
+                            <span class="stat-chip">
+                                <i class="bi bi-people"></i> {{ summary.total_students }} enrollments
+                            </span>
+                            {% if summary.total_behavior_entries %}
+                            <span class="stat-chip">
+                                <i class="bi bi-star"></i> {{ summary.total_behavior_entries }} behavior entries
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if summary.closing and summary.closing.notes %}
+                        <div class="closing-notes-preview">
+                            <i class="bi bi-journal-text"></i>
+                            <span>{{ summary.closing.notes|truncatechars:120 }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <i class="bi bi-chevron-right semester-arrow"></i>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-archive"></i>
+                    <h6>No archived semesters yet</h6>
+                    <p>Closed semesters will appear here for future reference.</p>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+</body>
+</html>

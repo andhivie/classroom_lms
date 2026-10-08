@@ -1,0 +1,580 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Close Semester — Classroom LMS</title>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'css/andhivie.css' %}">
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+
+    <style>
+        body {
+            background: #FDF8F4;
+            padding-bottom: 100px;
+        }
+        .close-page {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Page header */
+        .close-header {
+            margin-bottom: 1.5rem;
+        }
+        .close-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .close-title i {
+            color: #D97706;
+            font-size: 1.25rem;
+        }
+        .close-subtitle {
+            font-size: 0.88rem;
+            color: #6B7280;
+            margin: 0.3rem 0 0 0;
+        }
+
+        /* Warning banner */
+        .warning-banner {
+            background: linear-gradient(135deg, #FFF7ED 0%, #FEF3C7 100%);
+            border: 1px solid #FDE68A;
+            border-left: 4px solid #D97706;
+            border-radius: 0.85rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            color: #7C2D12;
+            font-size: 0.9rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+        .warning-banner i {
+            color: #D97706;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+            margin-top: 0.1rem;
+        }
+        .warning-banner strong {
+            font-weight: 700;
+            color: #7C2D12;
+        }
+
+        /* Section card */
+        .section-card {
+            background: #ffffff;
+            border: 1px solid #F0EAE3;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+        }
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin: 0 0 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title i {
+            color: #9B1B30;
+            font-size: 1rem;
+        }
+
+        /* Semester selector */
+        .semester-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            background: #FAF6F1;
+            border: 2px solid #E8E1DA;
+            border-radius: 0.75rem;
+            margin-bottom: 0.6rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .semester-option:hover {
+            border-color: rgba(155, 27, 48, 0.35);
+            background: #FDF3F0;
+        }
+        .semester-option.selected {
+            border-color: #9B1B30;
+            background: #FDF3F0;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
+        }
+        .semester-option input[type="radio"] {
+            display: none;
+        }
+        .semester-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .semester-name {
+            font-weight: 700;
+            font-size: 0.98rem;
+            color: #1F2937;
+            margin: 0 0 0.15rem 0;
+        }
+        .semester-dates {
+            font-size: 0.8rem;
+            color: #6B7280;
+            margin: 0;
+        }
+        .semester-stats {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.4rem;
+        }
+        .semester-stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2em 0.6em;
+            background: #ffffff;
+            color: #4B5563;
+            border: 1px solid #E8E1DA;
+            border-radius: 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .semester-stat-badge i {
+            color: #9B1B30;
+            font-size: 0.75rem;
+        }
+        .radio-indicator {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #D4CCC3;
+            background: #ffffff;
+            position: relative;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+        .semester-option.selected .radio-indicator {
+            border-color: #9B1B30;
+            background: #9B1B30;
+        }
+        .semester-option.selected .radio-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffffff;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Notes textarea */
+        .form-label {
+            font-weight: 600;
+            color: #1F2937;
+            font-size: 0.85rem;
+            margin-bottom: 0.4rem;
+        }
+        .form-control {
+            border: 1.5px solid #E8E1DA;
+            border-radius: 0.6rem;
+            padding: 0.65rem 0.9rem;
+            font-size: 0.9rem;
+            color: #1F2937;
+            background: #FAF6F1;
+            transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-control:focus {
+            border-color: #9B1B30;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(155, 27, 48, 0.08);
+            outline: none;
+        }
+        textarea.form-control {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        /* Backup status chip */
+        .backup-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .backup-status-chip.healthy {
+            background: #D1FAE5;
+            color: #047857;
+        }
+        .backup-status-chip.warning {
+            background: #FEF3C7;
+            color: #B45309;
+        }
+        .backup-status-chip.old {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+
+        /* Bottom bar */
+        .close-bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border-top: 1px solid #F0EAE3;
+            padding: 0.85rem 1.25rem;
+            box-shadow: 0 -2px 8px rgba(31, 41, 55, 0.06);
+            z-index: 100;
+        }
+        .close-bottom-bar .inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
+        }
+        .btn-close-semester {
+            background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+            color: #ffffff;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            border-radius: 0.6rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            box-shadow: 0 3px 10px rgba(220, 38, 38, 0.22);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+            height: 42px;
+        }
+        .btn-close-semester:hover:not(:disabled) {
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(220, 38, 38, 0.32);
+        }
+        .btn-close-semester:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-cancel {
+            background: #ffffff;
+            border: 1.5px solid #E8E1DA;
+            color: #6B7280;
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.6rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+        }
+        .btn-cancel:hover {
+            background: #FAF6F1;
+            color: #1F2937;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #9CA3AF;
+        }
+        .empty-state i {
+            font-size: 3rem;
+            color: #E8E1DA;
+            display: block;
+            margin-bottom: 1rem;
+        }
+        .empty-state h5 {
+            color: #4B5563;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+
+        @media (max-width: 767.98px) {
+            .close-title { font-size: 1.1rem; }
+            .section-card { padding: 1.15rem; }
+            .semester-option { padding: 0.85rem; }
+            .close-bottom-bar .inner {
+                flex-direction: column-reverse;
+                gap: 0.5rem;
+            }
+            .close-bottom-bar .btn-close-semester,
+            .close-bottom-bar .btn-cancel {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    {% include 'lms/_navbar.html' %}
+    {% include 'lms/_sidebar.html' %}
+
+    <div class="container-fluid mt-3 mb-4">
+        <div class="close-page">
+
+            <!-- HEADER -->
+            <div class="close-header">
+                <h1 class="close-title">
+                    <i class="bi bi-lock-fill"></i>
+                    Close Semester
+                </h1>
+                <p class="close-subtitle">
+                    Archive the current semester and preserve all data for future reference.
+                </p>
+            </div>
+
+            <!-- WARNING -->
+            <div class="warning-banner">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div>
+                    <strong>Before you continue:</strong>
+                    Closing a semester will
+                    <strong>archive all its classes</strong> (they won't appear on the dashboard).
+                    Behavior points, attendance, and scores
+                    <strong>are kept in history</strong> &mdash; nothing is deleted.
+                    You can restore classes later from the Semester Archive.
+                </div>
+            </div>
+
+            <!-- BACKUP STATUS -->
+            <div class="section-card">
+                <h6 class="section-title">
+                    <i class="bi bi-shield-check"></i>
+                    Safety Check
+                </h6>
+                <p style="font-size: 0.88rem; color: #4B5563; margin-bottom: 0.75rem;">
+                    An automatic backup will be created before closing. Current backup status:
+                </p>
+                {% if backup_status.last_backup %}
+                    <span class="backup-status-chip {{ backup_status.health }}">
+                        <i class="bi bi-check-circle-fill"></i>
+                        Last backup: {{ backup_status.last_backup_str }}
+                    </span>
+                {% else %}
+                    <span class="backup-status-chip old">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        No backup yet &mdash; one will be created now
+                    </span>
+                {% endif %}
+            </div>
+
+            <form method="post" id="closeSemesterForm">
+                {% csrf_token %}
+
+                <!-- SEMESTER SELECTION -->
+                <div class="section-card">
+                    <h6 class="section-title">
+                        <i class="bi bi-calendar-range"></i>
+                        Select Semester to Close
+                    </h6>
+
+                    {% if active_semesters %}
+                        {% for summary in active_semesters %}
+                        <label class="semester-option" data-semester-id="{{ summary.semester.id }}">
+                            <input type="radio" name="semester_id" value="{{ summary.semester.id }}"
+                                   {% if forloop.first %}checked{% endif %}>
+                            <div class="semester-info">
+                                <p class="semester-name">{{ summary.semester.name }}</p>
+                                <p class="semester-dates">
+                                    <i class="bi bi-calendar3 me-1"></i>
+                                    {{ summary.semester.start_date|date:"M d, Y" }}
+                                    &ndash;
+                                    {{ summary.semester.end_date|date:"M d, Y" }}
+                                </p>
+                                <div class="semester-stats">
+                                    <span class="semester-stat-badge">
+                                        <i class="bi bi-book"></i>
+                                        {{ summary.total_classes }} classes
+                                    </span>
+                                    <span class="semester-stat-badge">
+                                        <i class="bi bi-people"></i>
+                                        {{ summary.total_students }} enrollments
+                                    </span>
+                                    {% if summary.total_behavior_entries %}
+                                    <span class="semester-stat-badge">
+                                        <i class="bi bi-star"></i>
+                                        {{ summary.total_behavior_entries }} behavior entries
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="radio-indicator"></div>
+                        </label>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-calendar-x"></i>
+                            <h5>No active semester</h5>
+                            <p>All your semesters have already been closed.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- NOTES -->
+                {% if active_semesters %}
+                <div class="section-card">
+                    <h6 class="section-title">
+                        <i class="bi bi-journal-text"></i>
+                        Notes (Optional)
+                    </h6>
+                    <p style="font-size: 0.83rem; color: #6B7280; margin-bottom: 0.75rem;">
+                        Add notes for future reference. They will be visible in the Semester Archive.
+                    </p>
+                    <textarea name="notes" class="form-control"
+                              placeholder="e.g., Focus curriculum on grammar. 5 students need extra attention next semester."
+                              maxlength="1000"></textarea>
+                </div>
+                {% endif %}
+            </form>
+
+        </div>
+    </div>
+
+    <!-- STICKY BOTTOM BAR -->
+    {% if active_semesters %}
+    <div class="close-bottom-bar">
+        <div class="inner">
+            <a href="{% url 'dashboard' %}" class="btn-cancel">Cancel</a>
+            <button type="submit" form="closeSemesterForm" class="btn-close-semester" id="closeSemesterBtn">
+                <i class="bi bi-lock-fill"></i>
+                <span>Close Semester</span>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- CONFIRM MODAL -->
+    <div class="modal fade" id="confirmCloseModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border: none; border-radius: 1rem; overflow: hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%); color: #ffffff; border: none; padding: 1rem 1.5rem;">
+                    <h5 class="modal-title" style="font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        Final Confirmation
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
+                </div>
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <p style="font-size: 0.95rem; color: #1F2937;">
+                        Are you absolutely sure you want to close this semester?
+                    </p>
+                    <div style="background: #FEF6F6; border: 1px solid #FAD7D7; border-left: 3px solid #DC2626; border-radius: 0.6rem; padding: 0.75rem 1rem; font-size: 0.85rem; color: #991B1B;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        All classes will be archived. You can restore them later, but the dashboard will be empty until then.
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F5EDE5; padding: 1rem 1.5rem;">
+                    <button type="button" class="btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn-close-semester" id="confirmCloseBtn">
+                        <i class="bi bi-lock-fill"></i>
+                        Yes, Close Semester
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    <script>
+        // Radio selection visual
+        document.querySelectorAll('.semester-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                document.querySelectorAll('.semester-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+        // Initialize first as selected
+        const firstOpt = document.querySelector('.semester-option');
+        if (firstOpt) firstOpt.classList.add('selected');
+
+        // Confirm flow
+        const form = document.getElementById('closeSemesterForm');
+        const closeBtn = document.getElementById('closeSemesterBtn');
+        const confirmModalEl = document.getElementById('confirmCloseModal');
+        const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+        const confirmBtn = document.getElementById('confirmCloseBtn');
+
+        if (closeBtn && confirmModal) {
+            closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Validate a radio is selected
+                const selected = form.querySelector('input[name="semester_id"]:checked');
+                if (!selected) {
+                    if (typeof showNotification === 'function') showNotification('Please select a semester.', 'warning');
+                    return;
+                }
+                confirmModal.show();
+            });
+        }
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async function() {
+                const btn = this;
+                const originalHTML = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Closing...';
+
+                const formData = new FormData(form);
+
+                try {
+                    const res = await fetch("{% url 'close_semester' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.status === 'ok') {
+                        if (confirmModal) confirmModal.hide();
+                        if (typeof showNotification === 'function') showNotification(data.message, 'success');
+                        if (typeof addActivityLog === 'function') addActivityLog('Semester closed');
+
+                        setTimeout(() => {
+                            window.location.href = "{% url 'dashboard' %}";
+                        }, 1500);
+                    } else {
+                        if (typeof showNotification === 'function') showNotification(data.message || 'Failed to close.', 'danger');
+                        btn.disabled = false;
+                        btn.innerHTML = originalHTML;
+                    }
+                } catch (err) {
+                    console.error('Close semester error:', err);
+                    if (typeof showNotification === 'function') showNotification('Network error.', 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
