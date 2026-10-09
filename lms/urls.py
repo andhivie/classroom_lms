@@ -11,6 +11,8 @@ urlpatterns = [
     # ---------- Students ----------
     path('bulk-add-students/', views.bulk_add_students, name='bulk_add_students'),
     path('delete-student/<int:student_id>/<int:class_id>/', views.delete_student, name='delete_student'),
+    path('edit-student/<int:student_id>/', views.edit_student, name='edit_student'),
+    path('student/<int:student_id>/note/', views.student_note, name='student_note'),
 
     # ---------- Attendance ----------
     path('attendance/<int:class_id>/', views.mark_attendance, name='mark_attendance'),

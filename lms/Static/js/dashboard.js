@@ -17,15 +17,6 @@ function getCsrfToken() {
 const CSRF_TOKEN = getCsrfToken();
 
 // ========== BASIC UTILITIES ==========
-function updateClock() {
-    const now = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-    const clockEl = document.getElementById('live-clock');
-    if (clockEl) clockEl.innerText = now.toLocaleDateString('id-ID', options);
-}
-updateClock();
-setInterval(updateClock, 1000);
-
 function showNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `alert alert-${type} alert-dismissible fade show`;
@@ -571,6 +562,336 @@ function attachAjaxEvents() {
         });
     });
 
+    // --- Edit student ---
+    document.querySelectorAll('.edit-student-icon').forEach(icon => {
+        icon.addEventListener('click', function (e) {
+            e.preventDefault();
+            const studentId = this.dataset.studentId;
+            const studentName = this.dataset.studentName;
+            const studentEmail = this.dataset.studentEmail || '';
+
+            document.getElementById('editStudentId').value = studentId;
+            document.getElementById('editStudentName').value = studentName;
+            document.getElementById('editStudentEmail').value = studentEmail;
+
+            const modalEl = document.getElementById('editStudentModal');
+            if (modalEl) new bootstrap.Modal(modalEl).show();
+        });
+    });
+
+    // --- Edit student form submit ---
+    const editStudentForm = document.getElementById('editStudentForm');
+    if (editStudentForm && !editStudentForm.dataset.bound) {
+        editStudentForm.dataset.bound = 'true';
+        editStudentForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const studentId = document.getElementById('editStudentId').value;
+            const newName = document.getElementById('editStudentName').value.trim();
+            const newEmail = document.getElementById('editStudentEmail').value.trim();
+
+            if (!newName) {
+                showNotification('Name cannot be empty.', 'warning');
+                return;
+            }
+
+            const submitBtn = editStudentForm.querySelector('button[type="submit"]');
+            const originalHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+            const formData = new URLSearchParams();
+            formData.append('name', newName);
+            formData.append('email', newEmail);
+
+            try {
+                const res = await fetch(`/edit-student/${studentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': CSRF_TOKEN,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    showNotification(data.message, 'success');
+                    if (typeof addActivityLog === 'function') addActivityLog('Student info updated');
+
+                    // Update UI: find all rows/cards with this student and update name
+                    document.querySelectorAll(`[data-student-id="${studentId}"]`).forEach(el => {
+                        // Desktop table name span
+                        const nameSpan = el.querySelector('.student-name-container > span');
+                        if (nameSpan) nameSpan.textContent = newName;
+                        // Mobile card name
+                        const mobileName = el.querySelector('.mobile-name');
+                        if (mobileName) mobileName.textContent = newName;
+                        // Update data-student-name on the delete icon + reset icon + convert button
+                        el.querySelectorAll('[data-student-name]').forEach(node => {
+                            node.dataset.studentName = newName;
+                        });
+                        // Update title attribute for the edit icon
+                        const editIcon = el.querySelector('.edit-student-icon');
+                        if (editIcon) {
+                            editIcon.dataset.studentName = newName;
+                            editIcon.dataset.studentEmail = newEmail;
+                        }
+                    });
+
+                    // Close modal
+                    const modalEl = document.getElementById('editStudentModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                } else {
+                    showNotification(data.message || 'Failed to save.', 'danger');
+                }
+            } catch (err) {
+                console.error('Edit student error:', err);
+                showNotification('Network error.', 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHTML;
+            }
+        });
+    }
+
+    // ============================================================
+    // PRIVATE NOTES — event delegation
+    // ============================================================
+
+    let noteAutosaveTimer = null;
+    let noteCurrentStudentId = null;
+
+    // ---------- Open note modal ----------
+    document.addEventListener('click', function (e) {
+        const icon = e.target.closest('.note-icon');
+        if (!icon) return;
+        e.preventDefault();
+
+        const studentId = icon.dataset.studentId;
+        const studentName = icon.dataset.studentName;
+
+        noteCurrentStudentId = studentId;
+
+        document.getElementById('noteStudentId').value = studentId;
+        document.getElementById('noteStudentName').textContent = studentName;
+        document.getElementById('noteTextarea').value = '';
+        document.getElementById('noteMetaInfo').textContent = 'Loading...';
+        document.getElementById('deleteNoteBtn').style.display = 'none';
+        document.getElementById('noteAutosaveIndicator').classList.remove('show');
+
+        const modalEl = document.getElementById('noteModal');
+        if (modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        // Fetch existing note
+        fetch(`/student/${studentId}/note/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    document.getElementById('noteTextarea').value = data.note || '';
+
+                    if (data.has_note) {
+                        document.getElementById('noteMetaInfo').innerHTML =
+                            `<i class="bi bi-clock-history me-1"></i>Last updated: ${data.updated_at}`;
+                        document.getElementById('deleteNoteBtn').style.display = 'inline-flex';
+                    } else {
+                        document.getElementById('noteMetaInfo').textContent = 'No note yet. Start typing to add one.';
+                    }
+                } else {
+                    document.getElementById('noteMetaInfo').textContent = 'Failed to load note.';
+                }
+            })
+            .catch(err => {
+                console.error('Note load error:', err);
+                document.getElementById('noteMetaInfo').textContent = 'Network error.';
+            });
+    });
+
+    // ---------- Auto-save on typing (debounced) ----------
+    document.addEventListener('input', function (e) {
+        if (!e.target.matches('#noteTextarea')) return;
+
+        clearTimeout(noteAutosaveTimer);
+        noteAutosaveTimer = setTimeout(() => {
+            performNoteAutosave();
+        }, 2000);
+    });
+
+    function performNoteAutosave() {
+        const studentId = document.getElementById('noteStudentId').value;
+        const noteText = document.getElementById('noteTextarea').value;
+
+        // Skip autosave if textarea is empty AND there's no existing note
+        if (!noteText.trim()) {
+            return;
+        }
+
+        const formData = new URLSearchParams();
+        formData.append('note', noteText);
+        formData.append('action', 'save');
+
+        fetch(`/student/${studentId}/note/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    document.getElementById('noteMetaInfo').innerHTML =
+                        `<i class="bi bi-clock-history me-1"></i>Last updated: ${data.updated_at}`;
+                    document.getElementById('deleteNoteBtn').style.display = 'inline-flex';
+
+                    const indicator = document.getElementById('noteAutosaveIndicator');
+                    indicator.classList.add('show');
+                    setTimeout(() => indicator.classList.remove('show'), 2000);
+
+                    // Update icon visual state
+                    updateNoteIconState(studentId, true);
+                }
+            })
+            .catch(err => console.error('Autosave error:', err));
+    }
+
+    // ---------- Manual save ----------
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('#saveNoteBtn');
+        if (!btn) return;
+        e.preventDefault();
+
+        const studentId = document.getElementById('noteStudentId').value;
+        const noteText = document.getElementById('noteTextarea').value;
+
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        const formData = new URLSearchParams();
+        formData.append('note', noteText);
+        formData.append('action', noteText.trim() ? 'save' : 'delete');
+
+        fetch(`/student/${studentId}/note/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    showNotification(data.message, 'success');
+                    if (typeof addActivityLog === 'function') addActivityLog('Private note saved');
+
+                    const hasNote = data.has_note;
+
+                    if (hasNote) {
+                        document.getElementById('noteMetaInfo').innerHTML =
+                            `<i class="bi bi-clock-history me-1"></i>Last updated: ${data.updated_at}`;
+                        document.getElementById('deleteNoteBtn').style.display = 'inline-flex';
+                    } else {
+                        document.getElementById('noteMetaInfo').textContent = 'No note yet. Start typing to add one.';
+                        document.getElementById('deleteNoteBtn').style.display = 'none';
+                    }
+
+                    updateNoteIconState(studentId, hasNote);
+
+                    const modalEl = document.getElementById('noteModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                } else {
+                    showNotification(data.message || 'Failed to save note.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error('Save note error:', err);
+                showNotification('Network error.', 'danger');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            });
+    });
+
+    // ---------- Delete note ----------
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('#deleteNoteBtn');
+        if (!btn) return;
+        e.preventDefault();
+
+        if (!confirm('Delete this note permanently?')) return;
+
+        const studentId = document.getElementById('noteStudentId').value;
+
+        const formData = new URLSearchParams();
+        formData.append('action', 'delete');
+
+        fetch(`/student/${studentId}/note/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    showNotification(data.message, 'success');
+                    if (typeof addActivityLog === 'function') addActivityLog('Private note deleted');
+
+                    document.getElementById('noteTextarea').value = '';
+                    document.getElementById('noteMetaInfo').textContent = 'No note yet. Start typing to add one.';
+                    document.getElementById('deleteNoteBtn').style.display = 'none';
+
+                    updateNoteIconState(studentId, false);
+
+                    const modalEl = document.getElementById('noteModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                } else {
+                    showNotification(data.message || 'Failed to delete note.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error('Delete note error:', err);
+                showNotification('Network error.', 'danger');
+            });
+    });
+
+    // ---------- Helper: update note icon visual state ----------
+    function updateNoteIconState(studentId, hasNote) {
+        document.querySelectorAll(`.note-icon[data-student-id="${studentId}"]`).forEach(icon => {
+            const i = icon.querySelector('i');
+            if (!i) return;
+
+            if (hasNote) {
+                icon.classList.remove('no-note');
+                icon.classList.add('has-note');
+                i.className = 'bi bi-journal-bookmark-fill';
+                icon.title = 'Private note (has content)';
+            } else {
+                icon.classList.remove('has-note');
+                icon.classList.add('no-note');
+                i.className = 'bi bi-journal-bookmark';
+                icon.title = 'Add private note';
+            }
+        });
+    }
+
     // Reset student points — open modal
     document.querySelectorAll('.ajax-reset-student-points').forEach(icon => {
         icon.addEventListener('click', function(e) {
@@ -792,6 +1113,225 @@ function buildSummaryHTML(data) {
 document.addEventListener('DOMContentLoaded', function() {
     attachAjaxEvents();
     startHighlightRotation();
+
+    // ============================================================
+    // EVENT DELEGATION — robust for AJAX-rendered content
+    // ============================================================
+
+    // ---------- One-Click Praise: open modal ----------
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-praise-icon');
+        if (!btn) return;
+        e.preventDefault();
+
+        const studentId = btn.dataset.studentId;
+        const classId = btn.dataset.classId;
+        const studentName = btn.dataset.studentName;
+
+        document.getElementById('praiseStudentId').value = studentId;
+        document.getElementById('praiseClassId').value = classId;
+        document.getElementById('praiseStudentName').textContent = studentName;
+        document.getElementById('praiseCustomNote').value = '';
+
+        document.querySelectorAll('#praisePresetChips .praise-preset-chip').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.praise-point-btn').forEach(b => {
+            b.classList.toggle('selected', b.dataset.points === '3');
+        });
+
+        const modalEl = document.getElementById('praiseModal');
+        if (modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+    });
+
+    // ---------- Edit Student: open modal ----------
+    document.addEventListener('click', function (e) {
+        const icon = e.target.closest('.edit-student-icon');
+        if (!icon) return;
+        e.preventDefault();
+
+        const studentId = icon.dataset.studentId;
+        const studentName = icon.dataset.studentName;
+        const studentEmail = icon.dataset.studentEmail || '';
+
+        document.getElementById('editStudentId').value = studentId;
+        document.getElementById('editStudentName').value = studentName;
+        document.getElementById('editStudentEmail').value = studentEmail;
+
+        const modalEl = document.getElementById('editStudentModal');
+        if (modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+    });
+
+    // ---------- Praise: preset chip selection ----------
+    document.addEventListener('click', function (e) {
+        const chip = e.target.closest('#praisePresetChips .praise-preset-chip');
+        if (!chip) return;
+
+        const isSelected = chip.classList.contains('selected');
+        document.querySelectorAll('#praisePresetChips .praise-preset-chip').forEach(c => c.classList.remove('selected'));
+        if (!isSelected) {
+            chip.classList.add('selected');
+            document.getElementById('praiseCustomNote').value = '';
+        }
+    });
+
+    // ---------- Praise: points selector ----------
+    document.addEventListener('click', function (e) {
+        const pbtn = e.target.closest('.praise-point-btn');
+        if (!pbtn) return;
+
+        document.querySelectorAll('.praise-point-btn').forEach(b => b.classList.remove('selected'));
+        pbtn.classList.add('selected');
+    });
+
+    // ---------- Praise: clear chip selection on custom note typing ----------
+    document.addEventListener('input', function (e) {
+        if (!e.target.matches('#praiseCustomNote')) return;
+        if (e.target.value.trim().length > 0) {
+            document.querySelectorAll('#praisePresetChips .praise-preset-chip').forEach(c => c.classList.remove('selected'));
+        }
+    });
+
+    // ---------- Praise: form submit ----------
+    document.addEventListener('submit', async function (e) {
+        const form = e.target.closest('#praiseForm');
+        if (!form) return;
+        e.preventDefault();
+
+        const studentId = document.getElementById('praiseStudentId').value;
+        const classId = document.getElementById('praiseClassId').value;
+
+        let note = '';
+        const selectedChip = document.querySelector('#praisePresetChips .praise-preset-chip.selected');
+        if (selectedChip) {
+            note = selectedChip.dataset.note;
+        } else {
+            note = document.getElementById('praiseCustomNote').value.trim();
+        }
+
+        if (!note) {
+            showNotification('Please select a reason or write a note.', 'warning');
+            return;
+        }
+
+        const selectedPointBtn = document.querySelector('.praise-point-btn.selected');
+        const points = selectedPointBtn ? selectedPointBtn.dataset.points : '3';
+
+        const btn = document.getElementById('savePraiseBtn');
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+
+        const formData = new URLSearchParams();
+        formData.append('points', points);
+        formData.append('note', note);
+
+        try {
+            const res = await fetch(`/add-behavior/${studentId}/${classId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': CSRF_TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                updateStudentUI(studentId, classId, data);
+                showNotification(`⭐ Praised ${document.getElementById('praiseStudentName').textContent} (+${points})`, 'success');
+                if (typeof addActivityLog === 'function') {
+                    addActivityLog(`Praise: ${note} (+${points})`);
+                }
+                if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
+
+                const modalEl = document.getElementById('praiseModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+            } else {
+                showNotification(data.message || 'Failed to send praise.', 'danger');
+            }
+        } catch (err) {
+            console.error('Praise error:', err);
+            showNotification('Network error.', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    });
+
+    // ---------- Edit Student: form submit ----------
+    document.addEventListener('submit', async function (e) {
+        const form = e.target.closest('#editStudentForm');
+        if (!form) return;
+        e.preventDefault();
+
+        const studentId = document.getElementById('editStudentId').value;
+        const newName = document.getElementById('editStudentName').value.trim();
+        const newEmail = document.getElementById('editStudentEmail').value.trim();
+
+        if (!newName) {
+            showNotification('Name cannot be empty.', 'warning');
+            return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalHTML = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        const formData = new URLSearchParams();
+        formData.append('name', newName);
+        formData.append('email', newEmail);
+
+        try {
+            const res = await fetch(`/edit-student/${studentId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': CSRF_TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                showNotification(data.message, 'success');
+                if (typeof addActivityLog === 'function') addActivityLog('Student info updated');
+
+                document.querySelectorAll(`[data-student-id="${studentId}"]`).forEach(el => {
+                    const nameSpan = el.querySelector('.student-name-container > span');
+                    if (nameSpan) nameSpan.textContent = newName;
+                    const mobileName = el.querySelector('.mobile-name');
+                    if (mobileName) mobileName.textContent = newName;
+                    el.querySelectorAll('[data-student-name]').forEach(node => {
+                        node.dataset.studentName = newName;
+                    });
+                    const editIcon = el.querySelector('.edit-student-icon');
+                    if (editIcon) {
+                        editIcon.dataset.studentName = newName;
+                        editIcon.dataset.studentEmail = newEmail;
+                    }
+                });
+
+                const modalEl = document.getElementById('editStudentModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+            } else {
+                showNotification(data.message || 'Failed to save.', 'danger');
+            }
+        } catch (err) {
+            console.error('Edit student error:', err);
+            showNotification('Network error.', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHTML;
+        }
+    });
 });
 
 // ========== LIVE SEARCH & CLASS FILTER ==========

@@ -113,10 +113,22 @@ def dashboard(request):
             )
             attendance_percentage = att_data['percentage']
 
+            # Check if teacher has private note for this student
+            has_private_note = False
+            try:
+                from lms.models import StudentPrivateNote
+                has_private_note = StudentPrivateNote.objects.filter(
+                    student=student, teacher=request.user
+                ).exclude(note='').exists()
+            except Exception:
+                pass
+
             students_data.append({
                 'student': student,
+                'has_private_note': has_private_note,
                 'attendance_summary': attendance_summary,
                 'attendance_percentage': round(attendance_percentage, 1),
+                
                 # Behavior (from service)
                 'total_positive': behavior_status['total_positive'],
                 'total_negative': behavior_status['total_negative'],
@@ -169,8 +181,89 @@ def dashboard(request):
     return render(request, 'lms/teacher_dashboard.html', context)
 
 # ---------- Bulk Add Students ----------
+def _parse_student_lines(raw_text):
+    """
+    Parse raw textarea text into a list of dicts (name only).
+    Ignores empty lines and lines starting with '#'.
+    """
+    parsed = []
+    for idx, line in enumerate(raw_text.split('\n'), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        parsed.append({
+            'line': idx,
+            'name': stripped,
+        })
+    return parsed
+
+
+def _validate_student_entry(entry, class_obj, seen_names_in_request):
+    """
+    Return a validation result dict:
+        {
+            'line': int,
+            'name': str,
+            'status': 'valid' | 'duplicate' | 'error',
+            'reason': str (optional),
+        }
+    """
+    name = entry['name'].strip()
+
+    if not name:
+        return {
+            'line': entry['line'],
+            'name': '',
+            'status': 'error',
+            'reason': 'Name is empty',
+        }
+
+    if len(name) > 200:
+        return {
+            'line': entry['line'],
+            'name': name,
+            'status': 'error',
+            'reason': 'Name too long (max 200)',
+        }
+
+    # Duplicate within the submitted list
+    name_lower = name.lower()
+    if name_lower in seen_names_in_request:
+        return {
+            'line': entry['line'],
+            'name': name,
+            'status': 'duplicate',
+            'reason': 'Duplicate in this list',
+        }
+
+    # Duplicate against DB (already enrolled in this class)
+    already_exists = Student.objects.filter(
+        name__iexact=name,
+        enrollments__class_obj=class_obj,
+    ).exists()
+
+    if already_exists:
+        return {
+            'line': entry['line'],
+            'name': name,
+            'status': 'duplicate',
+            'reason': f'Already enrolled in {class_obj.name}',
+        }
+
+    return {
+        'line': entry['line'],
+        'name': name,
+        'status': 'valid',
+        'reason': '',
+    }
+
 @login_required
 def bulk_add_students(request):
+    """
+    Bulk add students with 2-step preview flow.
+    - POST action=preview → return JSON validation preview (no save)
+    - POST (normal)     → save valid students
+    """
     try:
         profile = request.user.profile
     except UserProfile.DoesNotExist:
@@ -178,27 +271,25 @@ def bulk_add_students(request):
             return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
         messages.error(request, "You do not have a profile.")
         return redirect('dashboard')
+
     if profile.role != 'teacher':
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'status': 'error', 'message': 'Only teachers can access.'}, status=403)
         messages.error(request, "Only teachers can access this page.")
         return redirect('dashboard')
 
-    classes = Class.objects.filter(teacher=request.user)
+    classes = Class.objects.filter(teacher=request.user, is_archived=False)
     is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
 
+    # ---------- POST ----------
     if request.method == 'POST':
-        class_id = request.POST.get('class_id')
+        class_id = request.POST.get('class_id', '').strip()
         student_data = request.POST.get('student_data', '').strip()
+        action = request.POST.get('action', '').strip()
 
+        # Validate class selection
         if not class_id:
             msg = "Please select a class."
-            if is_ajax:
-                return JsonResponse({'status': 'error', 'message': msg})
-            messages.error(request, msg)
-            return redirect('bulk_add_students')
-        if not student_data:
-            msg = "Please enter student data."
             if is_ajax:
                 return JsonResponse({'status': 'error', 'message': msg})
             messages.error(request, msg)
@@ -213,67 +304,102 @@ def bulk_add_students(request):
             messages.error(request, msg)
             return redirect('bulk_add_students')
 
-        lines = student_data.split('\n')
-        added_count = 0
-        skipped_count = 0
-        errors = []
+        if not student_data:
+            msg = "Please enter student data."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('bulk_add_students')
 
-        for line_num, line in enumerate(lines, start=1):
-            line = line.strip()
-            if not line:
+        # Parse + validate
+        parsed = _parse_student_lines(student_data)
+        if not parsed:
+            msg = "No valid lines found. Please enter at least one student."
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': msg})
+            messages.error(request, msg)
+            return redirect('bulk_add_students')
+
+        seen_names = set()
+        results = []
+        for entry in parsed:
+            validation = _validate_student_entry(entry, target_class, seen_names)
+            results.append(validation)
+            if validation['status'] == 'valid':
+                seen_names.add(validation['name'].lower())
+
+        valid_count = sum(1 for r in results if r['status'] == 'valid')
+        duplicate_count = sum(1 for r in results if r['status'] == 'duplicate')
+        error_count = sum(1 for r in results if r['status'] == 'error')
+
+        # Preview mode: return validation only
+        if action == 'preview':
+            return JsonResponse({
+                'status': 'ok',
+                'results': results,
+                'valid_count': valid_count,
+                'duplicate_count': duplicate_count,
+                'error_count': error_count,
+                'class_name': target_class.name,
+            })
+
+        # Save mode
+        added = 0
+        skipped = 0
+
+        for r in results:
+            if r['status'] != 'valid':
+                if r['status'] == 'duplicate':
+                    skipped += 1
                 continue
 
-            parts = [p.strip() for p in line.split(',')]
-            name = parts[0]
-            email = parts[1] if len(parts) > 1 and parts[1] else ''
-
-            if not name:
-                errors.append(f"Line {line_num}: Name is empty.")
-                continue
-
-            if Student.objects.filter(name__iexact=name, enrollments__class_obj=target_class).exists():
-                skipped_count += 1
-                errors.append(f"Line {line_num}: Student '{name}' already enrolled. Skipped.")
-                continue
-
+            # Create student + enrollment
             student = Student.objects.create(
-                name=name, email=email,
-                enrollment_date=date.today(), is_active=True
+                name=r['name'],
+                email='',
+                enrollment_date=date.today(),
+                is_active=True,
             )
             Enrollment.objects.create(
-                student=student, class_obj=target_class,
-                enrollment_date=date.today(), is_active=True
+                student=student,
+                class_obj=target_class,
+                enrollment_date=date.today(),
+                is_active=True,
             )
-            added_count += 1
+            added += 1
 
-        messages_list = []
-        if added_count:
-            messages_list.append(f"Successfully added {added_count} new student(s).")
-        if skipped_count:
-            messages_list.append(f"Skipped {skipped_count} student(s).")
-        for err in errors[:5]:
-            messages_list.append(err)
+        # Compose summary
+        parts = []
+        if added:
+            parts.append(f"Successfully added {added} student(s).")
+        if skipped:
+            parts.append(f"Skipped {skipped} duplicate(s).")
+        if error_count:
+            parts.append(f"{error_count} row(s) had errors.")
 
-        final_message = " ".join(messages_list)
+        final_message = " ".join(parts) if parts else "No students added."
+
         if is_ajax:
             return JsonResponse({
                 'status': 'ok',
                 'message': final_message,
-                'added': added_count,
-                'skipped': skipped_count,
-                'errors': errors[:5]
+                'added': added,
+                'skipped': skipped,
+                'errors': error_count,
+                'class_id': target_class.id,
             })
-        if added_count:
-            messages.success(request, f"Successfully added {added_count} new student(s).")
-        if skipped_count:
-            messages.warning(request, f"Skipped {skipped_count} student(s).")
-        for err in errors[:5]:
-            messages.error(request, err)
+
+        if added:
+            messages.success(request, f"Successfully added {added} new student(s).")
+        if skipped:
+            messages.warning(request, f"Skipped {skipped} duplicate(s).")
+        if error_count:
+            messages.warning(request, f"{error_count} row(s) had errors.")
         return redirect('dashboard')
 
+    # ---------- GET ----------
     context = {'classes': classes}
     return render(request, 'lms/bulk_add_students.html', context)
-
 
 # ---------- Mark Attendance ----------
 @login_required
@@ -861,6 +987,16 @@ def add_behavior(request, student_id, class_id):
             'message': f'Invalid points value {points}. Allowed: +1, +2, +3, -1, -2, -3.'
         }, status=400)
 
+    # --- Optional custom note (for One-Click Praise) ---
+    custom_note = request.POST.get('note', '').strip()
+    if len(custom_note) > 500:
+        custom_note = custom_note[:500]
+
+    if custom_note:
+        note_text = custom_note
+    else:
+        note_text = f"Quick {'positive' if points > 0 else 'negative'} point from dashboard"
+
     # --- Create the entry ---
     category, _ = BehaviorCategory.objects.get_or_create(
         name='Quick Point',
@@ -871,7 +1007,7 @@ def add_behavior(request, student_id, class_id):
         student=student,
         category=category,
         points=points,
-        note=f"Quick {'positive' if points > 0 else 'negative'} point from dashboard",
+        note=note_text,
         recorded_by=request.user,
         semester=class_obj.semester,
     )
@@ -1729,6 +1865,146 @@ def delete_student(request, student_id, class_id):
     except (Class.DoesNotExist, Enrollment.DoesNotExist):
         return JsonResponse({'status': 'error', 'message': 'Student or class not found.'}, status=404)
 
+@login_required
+def edit_student(request, student_id):
+    """
+    Edit a student's name and/or email.
+    Accessible only by teachers who have this student in at least one of their classes.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    # Access control — teacher must have at least one enrollment with this student
+    if not Enrollment.objects.filter(student=student, class_obj__teacher=request.user).exists():
+        return JsonResponse({'status': 'error', 'message': 'Not allowed.'}, status=403)
+
+    name = request.POST.get('name', '').strip()
+    email = request.POST.get('email', '').strip()
+
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'Name cannot be empty.'})
+
+    if len(name) > 200:
+        return JsonResponse({'status': 'error', 'message': 'Name is too long (max 200 chars).'})
+
+    if email and len(email) > 254:
+        return JsonResponse({'status': 'error', 'message': 'Email is too long.'})
+
+    old_name = student.name
+    student.name = name
+    student.email = email
+    student.save(update_fields=['name', 'email'])
+
+    # Log activity
+    try:
+        from lms.models import ActivityLog
+        if old_name != name:
+            ActivityLog.objects.create(
+                teacher=request.user,
+                action=f"Student renamed: '{old_name}' → '{name}'"
+            )
+        else:
+            ActivityLog.objects.create(
+                teacher=request.user,
+                action=f"Student info updated: {name}"
+            )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': f"Student updated: {name}.",
+        'new_name': name,
+        'new_email': email,
+    })
+
+@login_required
+def student_note(request, student_id):
+    """
+    GET:  Return the teacher's private note for a student.
+    POST: Save/update the note. Use action=delete to clear it.
+    """
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    # Access control: teacher must have at least one enrollment with this student
+    if not Enrollment.objects.filter(student=student, class_obj__teacher=request.user).exists():
+        return JsonResponse({'status': 'error', 'message': 'Not allowed.'}, status=403)
+
+    from lms.models import StudentPrivateNote
+
+    # GET: fetch note
+    if request.method == 'GET':
+        try:
+            note_obj = StudentPrivateNote.objects.get(student=student, teacher=request.user)
+            note_text = note_obj.note or ''
+            has_note = bool(note_text.strip())
+            updated_at = note_obj.updated_at.strftime('%d %b %Y, %H:%M')
+        except StudentPrivateNote.DoesNotExist:
+            note_text = ''
+            has_note = False
+            updated_at = None
+
+        return JsonResponse({
+            'status': 'ok',
+            'note': note_text,
+            'has_note': has_note,
+            'updated_at': updated_at,
+        })
+
+    # POST: save or delete
+    if request.method == 'POST':
+        action = request.POST.get('action', 'save')
+        note_text = request.POST.get('note', '').strip()
+
+        if len(note_text) > 5000:
+            return JsonResponse({'status': 'error', 'message': 'Note is too long (max 5000 chars).'})
+
+        if action == 'delete' or not note_text:
+            # Delete note
+            StudentPrivateNote.objects.filter(student=student, teacher=request.user).delete()
+            return JsonResponse({
+                'status': 'ok',
+                'message': f"Note for {student.name} deleted.",
+                'has_note': False,
+            })
+
+        # Save note (create or update)
+        note_obj, created = StudentPrivateNote.objects.update_or_create(
+            student=student,
+            teacher=request.user,
+            defaults={'note': note_text}
+        )
+
+        return JsonResponse({
+            'status': 'ok',
+            'message': f"Note saved for {student.name}.",
+            'has_note': True,
+            'updated_at': note_obj.updated_at.strftime('%d %b %Y, %H:%M'),
+        })
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
 
 # ---------- Charts ----------
 @login_required
@@ -1991,6 +2267,13 @@ def generate_ai_feedback(student, class_obj):
     else:
         daily_test_status_text = ""
 
+    # ---------- Private note (teacher-only context) ----------
+    from lms.models import StudentPrivateNote
+    private_note_obj = StudentPrivateNote.objects.filter(
+        student=student, teacher=class_obj.teacher
+    ).first()
+    private_note_text = private_note_obj.note.strip() if private_note_obj else ''
+
     # ---------- Build prompt ----------
     prompt = f"""Anda adalah {teacher_name}, seorang guru yang hangat dan komunikatif. Tulislah SURAT PRIBADI untuk orang tua/wali dari Ananda {student.name} di kelas {class_obj.name}. Gunakan Bahasa Indonesia yang mengalir, santun, dan personal. Surat boleh terdiri dari beberapa paragraf pendek. (Saat ini adalah {bulan_sekarang}.)
 
@@ -2013,8 +2296,6 @@ def generate_ai_feedback(student, class_obj):
 - Skor akhir sebagai ringkasan: Skor Akhir: {final_score} (Rata-rata Akademik {academic_avg:.1f} + Bonus {bonus_earned})
 - Motivasi dan harapan, termasuk solusi untuk siswa asrama: pentingnya komunikasi orang tua lewat telepon/video call, koordinasi dengan wali asrama.
 - Kalimat penutup yang sopan, lalu "Hormat kami, {teacher_name}".
-
-**Data pendukung (bisa dirujuk dengan ringkas):**
 """
     if assessment_details:
         for d in assessment_details:
@@ -2026,6 +2307,23 @@ def generate_ai_feedback(student, class_obj):
         prompt += "\nBeberapa asesmen yang belum dinilai:\n"
         for a in missing_assessments:
             prompt += f"- {a.name} (maks {a.max_points} poin)\n"
+
+    # ---------- Private context block (injected BEFORE closing) ----------
+    if private_note_text:
+        prompt += f"""
+**KONTEKS PRIVAT dari guru (SANGAT PENTING — BACA DENGAN TELITI):**
+
+"{private_note_text}"
+
+**ATURAN KETAT untuk konteks privat di atas:**
+1. Konteks ini adalah catatan pribadi guru, BUKAN untuk disampaikan secara literal.
+2. JANGAN sebut kata-kata spesifik dari catatan (nama orang, kejadian, kondisi keluarga, diagnosis, dll).
+3. Gunakan konteks ini HANYA untuk menyesuaikan tone surat:
+   - Jika ada kesulitan keluarga/masa sulit → tulis dengan nada hangat, empati, dan dukungan.
+   - Jika ada kebutuhan khusus → tekankan kesabaran dan kolaborasi.
+   - Jika ada kekuatan khusus → apresiasi secara personal tanpa menyebut catatan.
+4. Fokus tetap pada perkembangan akademik & perilaku Ananda seperti data di atas.
+"""
 
     prompt += f"""
 **Gaya penulisan:**
@@ -2111,6 +2409,14 @@ def student_feedback(request, student_id, class_id):
 
     behavior_status = calculate_behavior_status(student, class_obj)
 
+    # ---------- Private Note (teacher-only) ----------
+    from lms.models import StudentPrivateNote
+    private_note_obj = StudentPrivateNote.objects.filter(
+        student=student, teacher=request.user
+    ).first()
+    private_note = private_note_obj.note.strip() if private_note_obj else ''
+    has_private_note = bool(private_note)
+
     # ---------- Assessments ----------
     all_assessments = Assessment.objects.filter(class_obj=class_obj)
     scores = Score.objects.filter(
@@ -2178,6 +2484,9 @@ def student_feedback(request, student_id, class_id):
         'final_score': final_score,
         'assessment_details_json': json.dumps(assessment_details),
         'missing_assessments': missing_assessments,
+        # Private note (teacher-only)
+        'private_note': private_note,
+        'has_private_note': has_private_note,
     }
     return render(request, 'lms/student_feedback.html', context)
 

@@ -230,6 +230,33 @@ class SemesterClosing(models.Model):
     def __str__(self):
         return f"Closing of {self.semester.name} on {self.closed_at.strftime('%d %b %Y')}"
 
+class StudentPrivateNote(models.Model):
+    """
+    Teacher-only private notes about a student.
+    Each teacher has their own note per student.
+    Used to enrich AI-generated feedback with personal context.
+    """
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='private_notes'
+    )
+    teacher = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='private_notes'
+    )
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('student', 'teacher')
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Note by {self.teacher.username} on {self.student.name}"
+
 class BehaviorConversion(models.Model):
     """
     Log of behavior point conversions into academic bonus.

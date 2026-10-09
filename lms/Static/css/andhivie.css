@@ -3,7 +3,7 @@
    All brand colors defined once here. Imported by global.css.
 ============================================================ */
 
-:root {
+:root {    
     /* ----- Brand colors ----- */
     --andhivie-red:        #9B1B30;
     --andhivie-red-dark:   #7A1526;
@@ -64,7 +64,6 @@ nav.navbar.andhivie-navbar,
     align-items: center;
     position: relative;
 }
-
 .navbar.andhivie-navbar .container-fluid {
     display: flex;
     align-items: center;
@@ -147,9 +146,34 @@ nav.navbar.andhivie-navbar,
     color: #ffffff !important;
 }
 .navbar.andhivie-navbar .nav-link.active {
-    background: rgba(255, 255, 255, 0.20);
+    background: rgba(255, 255, 255, 0.14);
     color: #ffffff !important;
     font-weight: 600;
+    position: relative;
+}
+
+/* Gold underline accent for active state */
+.navbar.andhivie-navbar .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 2px;
+    background: #D4B16A;
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(212, 177, 106, 0.5);
+}
+
+/* On mobile — no underline, just subtle background */
+@media (max-width: 991.98px) {
+    .navbar.andhivie-navbar .nav-link.active::after {
+        display: none;
+    }
+    .navbar.andhivie-navbar .nav-link.active {
+        background: rgba(255, 255, 255, 0.18);
+    }
 }
 
 /* ============================================================
@@ -1759,4 +1783,397 @@ nav.navbar.andhivie-navbar,
     font-size: 0.6rem;
     line-height: 1;
     opacity: 0.85;
+}
+
+/* ============================================================
+   PRAISE ICON BUTTON (One-Click Praise)
+============================================================ */
+.behavior-btn-strip .btn-praise-icon {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+    color: #ffffff !important;
+    border: 1.5px solid #D97706 !important;
+    box-shadow: 0 1px 3px rgba(217, 119, 6, 0.30);
+}
+.behavior-btn-strip .btn-praise-icon:hover {
+    background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%) !important;
+    border-color: #F59E0B !important;
+    box-shadow: 0 3px 8px rgba(217, 119, 6, 0.40);
+    transform: translateY(-1px);
+}
+.behavior-btn-strip .btn-praise-icon:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(217, 119, 6, 0.30);
+}
+
+/* Praise modal chips */
+.praise-preset-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.85rem;
+    background: #FAF6F1;
+    border: 1.5px solid #E8E1DA;
+    border-radius: 1.5rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #4B5563;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.praise-preset-chip:hover {
+    background: #FEF3C7;
+    border-color: #FDE68A;
+    color: #92400E;
+}
+.praise-preset-chip.selected {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+    border-color: #D97706;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.30);
+}
+.praise-preset-chip i {
+    font-size: 0.85rem;
+}
+
+/* Point selector */
+.praise-point-btn {
+    flex: 1;
+    padding: 0.7rem 0.5rem;
+    background: #FAF6F1;
+    border: 1.5px solid #E8E1DA;
+    border-radius: 0.6rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #4B5563;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+.praise-point-btn:hover {
+    background: #F0FDF9;
+    border-color: #A7F3D0;
+    color: #047857;
+}
+.praise-point-btn.selected {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    border-color: #059669;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+}
+
+/* Custom note input */
+.praise-note-input {
+    border: 1.5px solid #E8E1DA;
+    border-radius: 0.6rem;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.88rem;
+    color: #1F2937;
+    background: #FAF6F1;
+    transition: all 0.15s ease;
+}
+.praise-note-input:focus {
+    border-color: #D97706;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.10);
+    outline: none;
+}
+
+/* Save praise button */
+.btn-save-praise {
+    background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 0.6rem;
+    padding: 0.55rem 1.5rem;
+    font-weight: 700;
+    font-size: 0.88rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 3px 10px rgba(217, 119, 6, 0.25);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+}
+.btn-save-praise:hover:not(:disabled) {
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(217, 119, 6, 0.35);
+}
+.btn-save-praise:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============================================================
+   PRIVATE NOTES — Icon + Modal
+============================================================ */
+
+/* Icon in the student-name-container / mobile card */
+.note-icon {
+    cursor: pointer;
+    font-size: 1.05rem;
+    transition: color 0.15s ease, transform 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+}
+.note-icon.no-note {
+    color: #B8B0A8;
+}
+.note-icon.no-note:hover {
+    color: #D97706;
+    transform: scale(1.15);
+}
+.note-icon.has-note {
+    color: #D97706;
+    position: relative;
+}
+.note-icon.has-note:hover {
+    color: #B45309;
+    transform: scale(1.15);
+}
+/* Small dot indicator on has-note */
+.note-icon.has-note::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 6px;
+    height: 6px;
+    background: #D97706;
+    border-radius: 50%;
+    border: 1.5px solid #ffffff;
+}
+
+/* Modal-specific: note textarea */
+.note-textarea {
+    border: 1.5px solid #E8E1DA;
+    border-radius: 0.6rem;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.9rem;
+    color: #1F2937;
+    background: #FAF6F1;
+    line-height: 1.55;
+    min-height: 160px;
+    max-height: 320px;
+    width: 100%;
+    resize: vertical;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+.note-textarea:focus {
+    border-color: #D97706;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.10);
+    outline: none;
+}
+.note-textarea::placeholder {
+    color: #B8B0A8;
+}
+
+/* Note meta info */
+.note-meta {
+    font-size: 0.75rem;
+    color: #9CA3AF;
+    margin-top: 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Autosave indicator */
+.note-autosave {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #059669;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.note-autosave.show {
+    opacity: 1;
+}
+
+/* Icon buttons in note modal footer */
+.btn-note-delete {
+    background: transparent;
+    border: 1.5px solid #FECACA;
+    color: #DC2626;
+    border-radius: 0.55rem;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.15s ease;
+    margin-right: auto;
+}
+.btn-note-delete:hover {
+    background: #FEF2F2;
+    border-color: #FCA5A5;
+}
+
+.btn-note-save {
+    background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 0.55rem;
+    padding: 0.5rem 1.35rem;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-note-save:hover:not(:disabled) {
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(217, 119, 6, 0.30);
+}
+.btn-note-save:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============================================================
+   BOTTOM CLOCK — pretty, animated, universal
+============================================================ */
+.bottom-clock {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem 0.6rem 0.9rem;
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.94), rgba(17, 24, 39, 0.96));
+    color: #ffffff;
+    border-radius: 50px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    z-index: 1000;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    letter-spacing: 0.3px;
+    user-select: none;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        border-color 0.3s ease;
+    animation: clockSlideIn 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bottom-clock:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        0 0 0 1px rgba(212, 177, 106, 0.25);
+    border-color: rgba(212, 177, 106, 0.35);
+}
+
+.bottom-clock .clock-icon {
+    color: #D4B16A;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    animation: clockGlow 3s ease-in-out infinite;
+}
+
+.bottom-clock .clock-text {
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    color: #F3F4F6;
+    font-variant-numeric: tabular-nums;
+}
+
+.bottom-clock .clock-dot {
+    width: 7px;
+    height: 7px;
+    background: #10B981;
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+    animation: clockPulse 2s ease-in-out infinite;
+}
+
+.bottom-clock .clock-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    animation: clockRipple 2s ease-out infinite;
+}
+
+/* ---------- Animations ---------- */
+@keyframes clockSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(24px) scale(0.85);
+    }
+    60% { opacity: 1; }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes clockPulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+    }
+    50% {
+        opacity: 0.85;
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.9);
+    }
+}
+
+@keyframes clockRipple {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+@keyframes clockGlow {
+    0%, 100% {
+        filter: drop-shadow(0 0 4px rgba(212, 177, 106, 0.4));
+    }
+    50% {
+        filter: drop-shadow(0 0 8px rgba(212, 177, 106, 0.7));
+    }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 767.98px) {
+    .bottom-clock {
+        font-size: 0.7rem;
+        padding: 0.5rem 0.85rem 0.5rem 0.75rem;
+        bottom: 12px;
+        right: 12px;
+        gap: 0.45rem;
+    }
+    .bottom-clock .clock-icon { font-size: 0.75rem; }
+    .bottom-clock .clock-dot { width: 6px; height: 6px; }
 }

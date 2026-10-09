@@ -17,6 +17,28 @@ function getCookie(name) {
 }
 const csrfToken = getCookie('csrftoken');
 
+// --- Live clock (bottom-right, English compact) ---
+function updateClock() {
+    const now = new Date();
+    const options = {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    };
+    const clockEl = document.getElementById('live-clock');
+    if (clockEl) {
+        clockEl.innerText = now.toLocaleDateString('en-US', options).replace(',', ' ·');
+    }
+}
+window.updateClock = updateClock;
+
+// Run immediately + refresh every minute
+updateClock();
+setInterval(updateClock, 60000);
+
 // --- Notifikasi (fallback) ---
 if (typeof showNotification === 'undefined') {
     window.showNotification = function (message, type) {

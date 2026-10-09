@@ -385,18 +385,17 @@
         </div>
     </div>
 
-    <div class="bottom-clock settings-clock" id="live-clock"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
         function updateClock() {
             const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const options = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
             const el = document.getElementById('live-clock');
-            if (el) el.innerText = now.toLocaleDateString('id-ID', options);
+            if (el) el.innerText = now.toLocaleDateString('en-US', options).replace(',', ' ·');
         }
         updateClock();
-        setInterval(updateClock, 1000);
+        setInterval(updateClock, 60000);
 
         // Live preview
         const ppcInput = document.getElementById('points_per_conversion');

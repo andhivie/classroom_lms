@@ -34,6 +34,7 @@
             </div>
 
             <div class="card-body p-2 p-md-3">
+                <!-- ========== DESKTOP TABLE ========== -->
                 <div class="d-none d-md-block table-responsive">
                     <table class="table table-fixed behavior-table">
                         <thead>
@@ -55,6 +56,13 @@
                                         <span>{{ student_item.student.name }}</span>
                                         <div class="icons-group">
                                             <a href="{% url 'student_feedback' student_item.student.id item.class.id %}" class="text-info" title="Feedback"><i class="bi bi-journal-text"></i></a>
+                                            <span class="note-icon {% if student_item.has_private_note %}has-note{% else %}no-note{% endif %}"
+                                                  data-student-id="{{ student_item.student.id }}"
+                                                  data-student-name="{{ student_item.student.name|escapejs }}"
+                                                  title="{% if student_item.has_private_note %}Private note (has content){% else %}Add private note{% endif %}">
+                                                <i class="bi {% if student_item.has_private_note %}bi-journal-bookmark-fill{% else %}bi-journal-bookmark{% endif %}"></i>
+                                            </span>
+                                            <span class="edit-student-icon text-primary" data-student-id="{{ student_item.student.id }}" data-student-name="{{ student_item.student.name|escapejs }}" data-student-email="{{ student_item.student.email|escapejs }}" title="Edit student" style="cursor: pointer;"><i class="bi bi-pencil-fill"></i></span>
                                             <span class="delete-student-icon ajax-delete-student text-danger" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="Delete student"><i class="bi bi-trash3-fill"></i></span>
                                         </div>
                                     </div>
@@ -69,6 +77,7 @@
                                         <button type="button" class="btn btn-minus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="-2">-2</button>
                                         <button type="button" class="btn btn-minus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="-3">-3</button>
                                         <span class="strip-divider"></span>
+                                        <button type="button" class="btn btn-icon btn-praise-icon" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="One-Click Praise"><i class="bi bi-star-fill"></i></button>
                                         <button type="button" class="btn btn-icon btn-reset-icon ajax-reset-student-points" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="Reset behavior points"><i class="bi bi-arrow-counterclockwise"></i></button>
                                         <button type="button" class="btn btn-icon btn-convert-icon ajax-convert-bonus" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" {% if not student_item.can_convert %}disabled title="{{ student_item.conversion_error }}"{% else %}title="Convert points into bonus"{% endif %}><i class="bi bi-gift-fill"></i></button>
                                     </div>
@@ -105,7 +114,7 @@
                     </table>
                 </div>
 
-                <!-- MOBILE CARDS -->
+                <!-- ========== MOBILE CARDS ========== -->
                 <div class="d-md-none">
                     {% for student_item in item.students %}
                     <div class="student-card-mobile" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}">
@@ -113,25 +122,20 @@
                         <!-- Row 1: Name + Action icons -->
                         <div class="mobile-header-row">
                             <span class="mobile-name">{{ student_item.student.name }}</span>
-                            <div class="d-flex align-items-center">
-                                <a href="{% url 'student_feedback' student_item.student.id item.class.id %}"
-                                   class="text-info"
-                                   title="Feedback"
-                                   style="text-decoration: none;">
-                                    <i class="bi bi-journal-text"></i>
-                                </a>
-                                <span class="delete-student-icon ajax-delete-student text-danger"
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="{% url 'student_feedback' student_item.student.id item.class.id %}" class="text-info" title="Feedback" style="text-decoration:none;"><i class="bi bi-journal-text"></i></a>
+                                <span class="note-icon {% if student_item.has_private_note %}has-note{% else %}no-note{% endif %}"
                                       data-student-id="{{ student_item.student.id }}"
-                                      data-class-id="{{ item.class.id }}"
-                                      data-student-name="{{ student_item.student.name }}"
-                                      title="Delete"
-                                      style="cursor:pointer;">
-                                    <i class="bi bi-trash3-fill"></i>
+                                      data-student-name="{{ student_item.student.name|escapejs }}"
+                                      title="{% if student_item.has_private_note %}Private note (has content){% else %}Add private note{% endif %}">
+                                    <i class="bi {% if student_item.has_private_note %}bi-journal-bookmark-fill{% else %}bi-journal-bookmark{% endif %}"></i>
                                 </span>
+                                <span class="edit-student-icon text-primary" data-student-id="{{ student_item.student.id }}" data-student-name="{{ student_item.student.name|escapejs }}" data-student-email="{{ student_item.student.email|escapejs }}" title="Edit" style="cursor:pointer;"><i class="bi bi-pencil-fill"></i></span>
+                                <span class="delete-student-icon ajax-delete-student text-danger" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="Delete" style="cursor:pointer;"><i class="bi bi-trash3-fill"></i></span>
                             </div>
                         </div>
 
-                        <!-- Row 2: Behavior buttons + reset + convert -->
+                        <!-- Row 2: Behavior buttons strip -->
                         <div class="behavior-btn-strip">
                             <button type="button" class="btn btn-plus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="1">+1</button>
                             <button type="button" class="btn btn-plus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="2">+2</button>
@@ -140,25 +144,12 @@
                             <button type="button" class="btn btn-minus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="-2">-2</button>
                             <button type="button" class="btn btn-minus btn-action ajax-behavior" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-points="-3">-3</button>
                             <span class="strip-divider"></span>
-                            <button type="button"
-                                    class="btn btn-icon btn-reset-icon ajax-reset-student-points"
-                                    data-student-id="{{ student_item.student.id }}"
-                                    data-class-id="{{ item.class.id }}"
-                                    data-student-name="{{ student_item.student.name }}"
-                                    title="Reset points">
-                                <i class="bi bi-arrow-counterclockwise"></i>
-                            </button>
-                            <button type="button"
-                                    class="btn btn-icon btn-convert-icon ajax-convert-bonus"
-                                    data-student-id="{{ student_item.student.id }}"
-                                    data-class-id="{{ item.class.id }}"
-                                    data-student-name="{{ student_item.student.name }}"
-                                    {% if not student_item.can_convert %}disabled title="{{ student_item.conversion_error }}"{% else %}title="Convert points into bonus"{% endif %}>
-                                <i class="bi bi-gift-fill"></i>
-                            </button>
+                            <button type="button" class="btn btn-icon btn-praise-icon" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="One-Click Praise"><i class="bi bi-star-fill"></i></button>
+                            <button type="button" class="btn btn-icon btn-reset-icon ajax-reset-student-points" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" title="Reset points"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button type="button" class="btn btn-icon btn-convert-icon ajax-convert-bonus" data-student-id="{{ student_item.student.id }}" data-class-id="{{ item.class.id }}" data-student-name="{{ student_item.student.name }}" {% if not student_item.can_convert %}disabled title="{{ student_item.conversion_error }}"{% else %}title="Convert points into bonus"{% endif %}><i class="bi bi-gift-fill"></i></button>
                         </div>
 
-                        <!-- Row 3: Meta (summary + attendance + final) -->
+                        <!-- Row 3: Meta information -->
                         <div class="mobile-meta-row">
                             <span class="meta-summary">
                                 <span class="text-success fw-semibold">+{{ student_item.total_positive }}</span>
@@ -167,7 +158,7 @@
                             </span>
                             <span class="meta-avail"><strong>Avail: {{ student_item.available_points }}</strong></span>
                             {% if student_item.daily_test_status == 'ready' %}
-                                <span class="badge bg-success">✓</span>
+                                <span class="badge bg-success" title="Ready for Daily Test">✓</span>
                             {% elif student_item.daily_test_status == 'not_ready' %}
                                 <span class="badge bg-secondary">-{{ student_item.points_needed_for_test }}</span>
                             {% endif %}
@@ -175,11 +166,11 @@
                                 <span class="badge bg-warning text-dark">+{{ student_item.bonus_earned }}b</span>
                             {% endif %}
                             <span class="meta-sep">·</span>
-                            <span class="meta-att">Att: {{ student_item.attendance_summary }}</span>
+                            <span class="meta-att text-muted">Att: {{ student_item.attendance_summary }}</span>
                             <span class="meta-sep">·</span>
                             <span class="meta-final">
                                 {% if student_item.final_score is not None %}
-                                    <span class="{% if student_item.final_score < 80 %}text-danger{% else %}text-success{% endif %}">Final: {{ student_item.final_score }}</span>
+                                    <span class="{% if student_item.final_score < 80 %}text-danger{% else %}text-success{% endif %} fw-semibold">Final: {{ student_item.final_score }}</span>
                                 {% else %}
                                     <span class="text-muted">Final: -</span>
                                 {% endif %}
@@ -191,6 +182,7 @@
                     {% endfor %}
                 </div>
 
+                <!-- ========== ACTION BUTTONS BOTTOM ========== -->
                 <div class="action-buttons mt-3 d-flex flex-wrap gap-2 justify-content-center justify-content-md-start">
                     <a href="{% url 'mark_attendance' item.class.id %}" class="btn btn-mark btn-action btn-sm">Mark Attendance</a>
                     <a href="{% url 'bulk_add_students' %}?class_id={{ item.class.id }}" class="btn btn-bulk btn-action btn-sm">Bulk Add Students</a>

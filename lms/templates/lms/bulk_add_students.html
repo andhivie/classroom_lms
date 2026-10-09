@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Add Students</title>
+    <title>Bulk Add Students — Classroom LMS</title>
 
     <link rel="icon" type="image/svg+xml" href="{% static 'images/andhivie_fox.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,18 +13,22 @@
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
 
     <style>
-        body { background: #FDF8F4; }
+        body {
+            background: #FDF8F4;
+            padding-bottom: 100px;
+        }
         .bulk-page {
-            max-width: 780px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 0 1rem;
         }
 
+        /* Header */
         .bulk-header {
-            margin-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
         }
         .bulk-title {
-            font-size: 1.25rem;
+            font-size: 1.35rem;
             font-weight: 700;
             color: #1F2937;
             margin: 0;
@@ -34,14 +38,14 @@
         }
         .bulk-title i {
             color: #9B1B30;
-            font-size: 1.15rem;
         }
         .bulk-subtitle {
-            font-size: 0.85rem;
+            font-size: 0.88rem;
             color: #6B7280;
-            margin: 0.15rem 0 0 0;
+            margin: 0.35rem 0 0 0;
         }
 
+        /* Card */
         .bulk-card {
             background: #ffffff;
             border: 1px solid #F0EAE3;
@@ -53,6 +57,7 @@
             padding: 1.75rem;
         }
 
+        /* Form */
         .form-label {
             font-weight: 600;
             color: #1F2937;
@@ -118,11 +123,177 @@
             font-weight: 600;
         }
 
-        .action-row {
+        /* Step indicator */
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.7rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Preview table */
+        .preview-summary {
             display: flex;
-            gap: 0.6rem;
-            margin-top: 1.5rem;
             flex-wrap: wrap;
+            gap: 0.6rem;
+            margin-bottom: 1.25rem;
+        }
+        .summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.9rem;
+            border-radius: 0.55rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .summary-chip.valid {
+            background: #D1FAE5;
+            color: #047857;
+            border: 1px solid #A7F3D0;
+        }
+        .summary-chip.duplicate {
+            background: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+        }
+        .summary-chip.error {
+            background: #FEE2E2;
+            color: #B91C1C;
+            border: 1px solid #FECACA;
+        }
+        .summary-chip strong {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        .preview-table thead th {
+            background: #FAF6F1;
+            color: #4B5563;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-size: 0.68rem;
+            padding: 0.65rem 0.75rem;
+            border-bottom: 1px solid #F0EAE3;
+            text-align: left;
+        }
+        .preview-table thead th.center {
+            text-align: center;
+        }
+        .preview-table tbody td {
+            padding: 0.7rem 0.75rem;
+            border-bottom: 1px solid #F5EDE5;
+            font-size: 0.88rem;
+            color: #1F2937;
+            vertical-align: middle;
+        }
+        .preview-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .preview-table tbody tr:hover td {
+            background: #FFFCFA;
+        }
+        .preview-table .row-num {
+            width: 40px;
+            text-align: center;
+            color: #9CA3AF;
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+        .preview-table .cell-name {
+            font-weight: 600;
+        }
+        .preview-table .cell-status {
+            width: 200px;
+        }
+        .preview-table .cell-action {
+            width: 60px;
+            text-align: center;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25em 0.6em;
+            border-radius: 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .status-badge.valid {
+            background: #D1FAE5;
+            color: #047857;
+        }
+        .status-badge.duplicate {
+            background: #FEF3C7;
+            color: #B45309;
+        }
+        .status-badge.error {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+        .status-reason {
+            display: block;
+            font-size: 0.72rem;
+            color: #9CA3AF;
+            margin-top: 0.2rem;
+            font-weight: 400;
+        }
+
+        .btn-remove-row {
+            background: transparent;
+            border: 1.5px solid #FECACA;
+            color: #DC2626;
+            border-radius: 0.4rem;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            padding: 0;
+            font-size: 0.85rem;
+        }
+        .btn-remove-row:hover {
+            background: #FEF2F2;
+            border-color: #FCA5A5;
+        }
+
+        /* Bottom bar */
+        .bulk-bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border-top: 1px solid #F0EAE3;
+            padding: 0.85rem 1.25rem;
+            box-shadow: 0 -2px 8px rgba(31, 41, 55, 0.06);
+            z-index: 100;
+        }
+        .bulk-bottom-bar .inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
         }
         .btn-primary-red {
             background: linear-gradient(135deg, #9B1B30 0%, #7A1526 100%);
@@ -137,15 +308,16 @@
             gap: 0.4rem;
             box-shadow: 0 2px 8px rgba(155, 27, 48, 0.22);
             transition: transform 0.15s ease, box-shadow 0.15s ease;
-            text-decoration: none;
+            height: 42px;
+            cursor: pointer;
         }
-        .btn-primary-red:hover {
+        .btn-primary-red:hover:not(:disabled) {
             color: #ffffff;
             transform: translateY(-1px);
             box-shadow: 0 6px 16px rgba(155, 27, 48, 0.30);
         }
         .btn-primary-red:disabled {
-            opacity: 0.7;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
         }
@@ -161,6 +333,8 @@
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
+            height: 42px;
+            cursor: pointer;
         }
         .btn-cancel-soft:hover {
             background: #FAF6F1;
@@ -169,9 +343,13 @@
 
         @media (max-width: 767.98px) {
             .bulk-card-body { padding: 1.25rem; }
-            .action-row { flex-direction: column; }
-            .action-row .btn-primary-red,
-            .action-row .btn-cancel-soft {
+            .preview-table .cell-status { width: 130px; }
+            .bulk-bottom-bar .inner {
+                flex-direction: column-reverse;
+                gap: 0.5rem;
+            }
+            .bulk-bottom-bar .btn-primary-red,
+            .bulk-bottom-bar .btn-cancel-soft {
                 width: 100%;
                 justify-content: center;
             }
@@ -181,10 +359,12 @@
 <body>
 
     {% include 'lms/_navbar.html' %}
+    {% include 'lms/_sidebar.html' %}
 
     <div class="container-fluid mt-3 mb-4">
         <div class="bulk-page">
 
+            <!-- HEADER -->
             <div class="bulk-header">
                 <h1 class="bulk-title">
                     <i class="bi bi-people-fill"></i>
@@ -193,9 +373,14 @@
                 <p class="bulk-subtitle">Add multiple students at once by pasting a list</p>
             </div>
 
-            <div class="bulk-card">
+            <!-- STEP 1: INPUT FORM -->
+            <div class="bulk-card" id="step1Card">
                 <div class="bulk-card-body">
-                    <form id="bulkAddForm" method="post">
+                    <div class="step-badge">
+                        <i class="bi bi-1-circle-fill"></i> Step 1: Paste List
+                    </div>
+
+                    <form id="bulkPreviewForm">
                         {% csrf_token %}
 
                         <div class="mb-3">
@@ -217,72 +402,296 @@
                                 Student List <span class="required">*</span>
                             </label>
                             <textarea name="student_data" id="student_data" class="form-control"
-                                placeholder="John Doe, john@example.com&#10;Jane Smith, jane@example.com&#10;Alex Johnson"></textarea>
+                                placeholder="John Doe&#10;Jane Smith&#10;Alex Johnson"></textarea>
                             <div class="form-hint">
                                 <i class="bi bi-info-circle-fill"></i>
                                 <div>
-                                    Format: <code>Name, Email</code> (email is optional).
-                                    One student per line. Empty lines are ignored.
+                                    One student name per line.
+                                    Empty lines and lines starting with <code>#</code> are ignored.
                                 </div>
                             </div>
                         </div>
-
-                        <div class="action-row">
-                            <button type="submit" class="btn-primary-red">
-                                <i class="bi bi-plus-circle-fill"></i>
-                                <span>Add Students</span>
-                            </button>
-                            <a href="{% url 'dashboard' %}{% if request.GET.class_id %}?class_id={{ request.GET.class_id }}{% endif %}" class="btn-cancel-soft">
-                                Cancel
-                            </a>
-                        </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- STEP 2: PREVIEW -->
+            <div class="bulk-card" id="step2Card" style="display: none;">
+                <div class="bulk-card-body">
+                    <div class="step-badge">
+                        <i class="bi bi-2-circle-fill"></i> Step 2: Review & Confirm
+                    </div>
+
+                    <div class="preview-summary" id="previewSummary">
+                        <!-- Filled by JS -->
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="preview-table">
+                            <thead>
+                                <tr>
+                                    <th class="row-num">#</th>
+                                    <th>Name</th>
+                                    <th class="cell-status">Status</th>
+                                    <th class="cell-action center"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewTableBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
         </div>
     </div>
 
+    <!-- STICKY BOTTOM BAR -->
+    <div class="bulk-bottom-bar">
+        <div class="inner">
+            <!-- Step 1 buttons -->
+            <div id="step1Actions" style="display: flex; gap: 0.6rem;">
+                <a href="{% url 'dashboard' %}{% if request.GET.class_id %}?class_id={{ request.GET.class_id }}{% endif %}" class="btn-cancel-soft">
+                    Cancel
+                </a>
+                <button type="button" class="btn-primary-red" id="previewBtn">
+                    <i class="bi bi-eye-fill"></i>
+                    <span>Preview List</span>
+                </button>
+            </div>
+
+            <!-- Step 2 buttons -->
+            <div id="step2Actions" style="display: none; gap: 0.6rem;">
+                <button type="button" class="btn-cancel-soft" id="backToEditBtn">
+                    <i class="bi bi-arrow-left"></i>
+                    Back to Edit
+                </button>
+                <button type="button" class="btn-primary-red" id="saveStudentsBtn">
+                    <i class="bi bi-check-lg"></i>
+                    <span id="saveBtnText">Add Students</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/sidebar.js' %}"></script>
     <script>
-        const form = document.getElementById('bulkAddForm');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Adding...';
+        // ---------- State ----------
+        let previewResults = [];
 
-            const formData = new FormData(form);
+        // ---------- Element refs ----------
+        const step1Card = document.getElementById('step1Card');
+        const step2Card = document.getElementById('step2Card');
+        const step1Actions = document.getElementById('step1Actions');
+        const step2Actions = document.getElementById('step2Actions');
+        const previewBtn = document.getElementById('previewBtn');
+        const backToEditBtn = document.getElementById('backToEditBtn');
+        const saveStudentsBtn = document.getElementById('saveStudentsBtn');
+        const previewSummary = document.getElementById('previewSummary');
+        const previewTableBody = document.getElementById('previewTableBody');
+        const saveBtnText = document.getElementById('saveBtnText');
+
+        // ---------- Preview ----------
+        previewBtn.addEventListener('click', async function() {
+            const classId = document.getElementById('class_id').value;
+            const studentData = document.getElementById('student_data').value.trim();
+
+            if (!classId) {
+                showNotification('Please select a class.', 'warning');
+                return;
+            }
+            if (!studentData) {
+                showNotification('Please enter student data.', 'warning');
+                return;
+            }
+
+            const originalHTML = previewBtn.innerHTML;
+            previewBtn.disabled = true;
+            previewBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking...';
+
+            const formData = new URLSearchParams();
+            formData.append('class_id', classId);
+            formData.append('student_data', studentData);
+            formData.append('action', 'preview');
+
             try {
-                const response = await fetch("{% url 'bulk_add_students' %}", {
+                const res = await fetch(window.location.pathname, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded'
                     },
                     body: formData
                 });
-                const data = await response.json();
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    previewResults = data.results || [];
+                    renderPreview(data);
+                    step1Card.style.display = 'none';
+                    step2Card.style.display = 'block';
+                    step1Actions.style.display = 'none';
+                    step2Actions.style.display = 'flex';
+                } else {
+                    showNotification(data.message || 'Preview failed.', 'danger');
+                }
+            } catch (err) {
+                console.error(err);
+                showNotification('Network error.', 'danger');
+            } finally {
+                previewBtn.disabled = false;
+                previewBtn.innerHTML = originalHTML;
+            }
+        });
+
+        // ---------- Render preview ----------
+        function renderPreview(data) {
+            // Summary chips
+            let summaryHtml = '';
+            if (data.valid_count > 0) {
+                summaryHtml += `<div class="summary-chip valid"><i class="bi bi-check-circle-fill"></i> <strong>${data.valid_count}</strong> ready</div>`;
+            }
+            if (data.duplicate_count > 0) {
+                summaryHtml += `<div class="summary-chip duplicate"><i class="bi bi-exclamation-triangle-fill"></i> <strong>${data.duplicate_count}</strong> duplicate</div>`;
+            }
+            if (data.error_count > 0) {
+                summaryHtml += `<div class="summary-chip error"><i class="bi bi-x-circle-fill"></i> <strong>${data.error_count}</strong> error</div>`;
+            }
+            previewSummary.innerHTML = summaryHtml;
+
+            // Table rows
+            previewTableBody.innerHTML = '';
+            previewResults.forEach((r, i) => {
+                const tr = document.createElement('tr');
+                tr.dataset.index = i;
+
+                const statusLabel = r.status === 'valid' ? 'Valid' : (r.status === 'duplicate' ? 'Duplicate' : 'Error');
+                const statusIcon = r.status === 'valid' ? 'bi-check-circle-fill' : (r.status === 'duplicate' ? 'bi-exclamation-triangle-fill' : 'bi-x-circle-fill');
+                const reasonHtml = r.reason ? `<span class="status-reason">${escapeHtml(r.reason)}</span>` : '';
+
+                tr.innerHTML = `
+                    <td class="row-num">${i + 1}</td>
+                    <td class="cell-name">${escapeHtml(r.name) || '<em class="text-muted">(empty)</em>'}</td>
+                    <td class="cell-status">
+                        <span class="status-badge ${r.status}">
+                            <i class="bi ${statusIcon}"></i> ${statusLabel}
+                        </span>
+                        ${reasonHtml}
+                    </td>
+                    <td class="cell-action">
+                        <button type="button" class="btn-remove-row" data-index="${i}" title="Remove from list">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </td>
+                `;
+
+                previewTableBody.appendChild(tr);
+            });
+
+            // Update save button label
+            const validCount = previewResults.filter(r => r.status === 'valid').length;
+            saveBtnText.textContent = `Add ${validCount} Student${validCount === 1 ? '' : 's'}`;
+            saveStudentsBtn.disabled = validCount === 0;
+
+            // Bind remove buttons
+            document.querySelectorAll('.btn-remove-row').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index, 10);
+                    removePreviewRow(idx);
+                });
+            });
+        }
+
+        // ---------- Remove row ----------
+        function removePreviewRow(idx) {
+            previewResults.splice(idx, 1);
+
+            // Re-render
+            const validCount = previewResults.filter(r => r.status === 'valid').length;
+            const duplicateCount = previewResults.filter(r => r.status === 'duplicate').length;
+            const errorCount = previewResults.filter(r => r.status === 'error').length;
+
+            renderPreview({
+                valid_count: validCount,
+                duplicate_count: duplicateCount,
+                error_count: errorCount,
+                results: previewResults,
+            });
+        }
+
+        // ---------- Back to edit ----------
+        backToEditBtn.addEventListener('click', function() {
+            step1Card.style.display = 'block';
+            step2Card.style.display = 'none';
+            step1Actions.style.display = 'flex';
+            step2Actions.style.display = 'none';
+        });
+
+        // ---------- Save ----------
+        saveStudentsBtn.addEventListener('click', async function() {
+            const classId = document.getElementById('class_id').value;
+            const validRows = previewResults.filter(r => r.status === 'valid');
+
+            if (validRows.length === 0) {
+                showNotification('No valid rows to save.', 'warning');
+                return;
+            }
+
+            const originalHTML = saveStudentsBtn.innerHTML;
+            saveStudentsBtn.disabled = true;
+            saveStudentsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+            // Reconstruct student_data from valid rows only
+            const lines = validRows.map(r => r.name);
+            const studentData = lines.join('\n');
+
+            const formData = new URLSearchParams();
+            formData.append('class_id', classId);
+            formData.append('student_data', studentData);
+
+            try {
+                const res = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+
                 if (data.status === 'ok') {
                     sessionStorage.setItem('bulkAddMessage', JSON.stringify({
                         type: 'success',
                         text: data.message
                     }));
-                    if (typeof addActivityLog === 'function') addActivityLog('Students added in bulk');
-                    window.location.href = "{% url 'dashboard' %}";
+                    if (typeof addActivityLog === 'function') addActivityLog(`Bulk add: ${data.added} student(s)`);
+                    window.location.href = "{% url 'dashboard' %}?class_id=" + classId;
                 } else {
-                    showNotification(data.message || 'Failed to add students.', 'danger');
+                    showNotification(data.message || 'Failed to save.', 'danger');
+                    saveStudentsBtn.disabled = false;
+                    saveStudentsBtn.innerHTML = originalHTML;
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                showNotification('Network error. Please try again.', 'danger');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+            } catch (err) {
+                console.error(err);
+                showNotification('Network error.', 'danger');
+                saveStudentsBtn.disabled = false;
+                saveStudentsBtn.innerHTML = originalHTML;
             }
         });
+
+        // ---------- HTML escape helper ----------
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
     </script>
 </body>
 </html>
