@@ -13,6 +13,9 @@ urlpatterns = [
     path('delete-student/<int:student_id>/<int:class_id>/', views.delete_student, name='delete_student'),
     path('edit-student/<int:student_id>/', views.edit_student, name='edit_student'),
     path('student/<int:student_id>/note/', views.student_note, name='student_note'),
+    path('student/<int:student_id>/snapshot/', views.student_snapshot, name='student_snapshot'),
+    path('student/<int:student_id>/class/<int:class_id>/focus/toggle/', views.toggle_focus_student, name='toggle_focus_student'),
+    path('student/<int:student_id>/class/<int:class_id>/focus/reason/', views.update_focus_reason, name='update_focus_reason'),
 
     # ---------- Attendance ----------
     path('attendance/<int:class_id>/', views.mark_attendance, name='mark_attendance'),

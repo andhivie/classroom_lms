@@ -30,7 +30,6 @@
             <h6 class="profile-name">{{ user.get_full_name|default:user.username }}</h6>
             <p class="profile-role" id="sidebarTitle">{{ user.profile.get_role_display }}</p>
 
-            <!-- Profile actions -->
             <div class="profile-actions" id="profilePicActions">
                 <button class="btn-profile-action" id="uploadProfilePicBtn" onclick="document.getElementById('profilePicInput').click()">
                     <i class="bi bi-camera"></i>
@@ -71,6 +70,24 @@
             <ul class="dropdown-menu" id="pendingClassDropdown" style="width: 100%; max-height: 200px; overflow-y: auto; border-radius: 0.6rem; box-shadow: 0 6px 16px rgba(0,0,0,0.10);"></ul>
         </div>
 
+        <!-- NEEDS ATTENTION -->
+        <div class="sidebar-section-title">Needs Attention</div>
+        <div id="needsAttentionList" class="needs-attention-list">
+            <div class="focus-empty-state">
+                <i class="bi bi-hourglass-split"></i>
+                <span>Loading...</span>
+            </div>
+        </div>
+
+        <!-- FOCUS STUDENTS -->
+        <div class="sidebar-section-title">Focus Students</div>
+        <div id="focusStudentsList" class="focus-students-list">
+            <div class="focus-empty-state">
+                <i class="bi bi-hourglass-split"></i>
+                <span>Loading...</span>
+            </div>
+        </div>
+
         <!-- RECENT ACTIVITY -->
         <div class="sidebar-section-title">Recent Activity</div>
         <div class="sidebar-activity" id="recentActivityList">
@@ -93,6 +110,7 @@
             <i class="bi bi-person-vcard-fill" style="color: #9B1B30;"></i>
             <span class="item-label">Find Student</span>
         </a>
+
         <!-- SEMESTER -->
         <div class="sidebar-section-title">Semester</div>
         <a href="{% url 'archive_list' %}" class="sidebar-item">
@@ -152,9 +170,24 @@
     </div>
 </div>
 
-<!-- ============================================================
-     LIVE CLOCK (bottom-right corner) — shown on all pages
-============================================================ -->
+<!-- STUDENT SNAPSHOT MODAL -->
+<div class="modal fade" id="snapshotModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content andhivie-modal">
+            <div class="modal-header andhivie-modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-badge-fill"></i> Student Snapshot
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="snapshotBody" style="padding: 0;">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LIVE CLOCK -->
 <div class="bottom-clock" id="clock-widget">
     <i class="bi bi-clock-fill clock-icon"></i>
     <span id="live-clock" class="clock-text">--:--</span>

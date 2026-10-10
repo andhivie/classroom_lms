@@ -329,3 +329,163 @@ def reset_class_behavior(class_obj, full_reset=False):
         'full_reset': full_reset,
         'student_count': len(student_ids),
     }
+
+# ---------------------------------------------------------------------------
+# Smart Highlight — student alerts
+# ---------------------------------------------------------------------------
+
+def calculate_student_alerts(student, class_obj, behavior_status=None):
+    """
+    Returns smart alert flags for a student based on recent activity.
+
+    Categories:
+        - attention: needs intervention (negative spike, low attendance, etc.)
+        - opportunity: ready for action (convert bonus, etc.)
+
+    Returns dict with:
+        has_alerts, severity, attention_count, alerts, opportunities
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from lms.models import (
+        BehaviorEntry, AttendanceRecord, Assessment, Score
+    )
+
+    if behavior_status is None:
+        behavior_status = calculate_behavior_status(student, class_obj)
+
+    alerts = []
+    opportunities = []
+
+    now = timezone.now()
+    today = timezone.localdate()
+
+    # 1. Frequent negatives (>= 3 in last 7 days)
+    seven_days_ago = now - timedelta(days=7)
+    neg_count = BehaviorEntry.objects.filter(
+        student=student,
+        semester=class_obj.semester,
+        points__lt=0,
+        timestamp__gte=seven_days_ago,
+    ).count()
+    if neg_count >= 3:
+        alerts.append({
+            'type': 'negatives_recent',
+            'label': 'Frequent negatives',
+            'detail': f'{neg_count} negative entr{"y" if neg_count == 1 else "ies"} in last 7 days',
+        })
+
+    # 2. No positives in last 14 days
+    fourteen_days_ago = now - timedelta(days=14)
+    pos_count = BehaviorEntry.objects.filter(
+        student=student,
+        semester=class_obj.semester,
+        points__gt=0,
+        timestamp__gte=fourteen_days_ago,
+    ).count()
+    first_enrollment = student.enrollments.filter(class_obj=class_obj).order_by('enrollment_date').first()
+    enrollment_age_ok = True
+    if first_enrollment and first_enrollment.enrollment_date:
+        days_enrolled = (today - first_enrollment.enrollment_date).days
+        enrollment_age_ok = days_enrolled >= 14
+
+    if pos_count == 0 and enrollment_age_ok:
+        alerts.append({
+            'type': 'no_positives',
+            'label': 'No recent positives',
+            'detail': 'No positive points in last 14 days',
+        })
+
+    # 3. Low attendance (< 70% in last 30 days)
+    thirty_days_ago = today - timedelta(days=30)
+    att_records = AttendanceRecord.objects.filter(
+        student=student,
+        session__class_obj=class_obj,
+        session__date__gte=thirty_days_ago,
+    )
+    total_att = att_records.count()
+    if total_att >= 3:
+        present = att_records.filter(status__in=['present', 'late', 'excused', 'sick']).count()
+        pct = (present / total_att) * 100
+        if pct < 70:
+            alerts.append({
+                'type': 'low_attendance',
+                'label': 'Low attendance',
+                'detail': f'{pct:.0f}% in last 30 days',
+            })
+
+    # 4. Score dropping
+    recent_scores = list(
+        Score.objects
+        .filter(student=student, assessment__class_obj=class_obj)
+        .select_related('assessment')
+        .order_by('-assessment__date')[:2]
+    )
+    if len(recent_scores) >= 2:
+        latest, previous = recent_scores[0], recent_scores[1]
+        latest_pct = (
+            (latest.points_earned / latest.assessment.max_points) * 100
+            if latest.assessment.max_points else 0
+        )
+        previous_pct = (
+            (previous.points_earned / previous.assessment.max_points) * 100
+            if previous.assessment.max_points else 0
+        )
+        if latest_pct < previous_pct - 5:
+            alerts.append({
+                'type': 'score_dropping',
+                'label': 'Score dropping',
+                'detail': f'From {previous_pct:.0f}% to {latest_pct:.0f}%',
+            })
+
+    # 5. Ungraded assessments (>= 2 missing)
+    all_assessments = Assessment.objects.filter(class_obj=class_obj)
+    total_assessments = all_assessments.count()
+    if total_assessments > 0:
+        graded_ids = set(
+            Score.objects
+            .filter(student=student, assessment__in=all_assessments)
+            .values_list('assessment_id', flat=True)
+        )
+        ungraded = total_assessments - len(graded_ids)
+        if ungraded >= 2:
+            alerts.append({
+                'type': 'ungraded_assessments',
+                'label': 'Missing scores',
+                'detail': f'{ungraded} assessments not graded',
+            })
+
+    # Opportunity: Ready to convert bonus
+    ppc = int(getattr(class_obj, 'points_per_conversion', 0) or 0)
+    max_bonus = int(getattr(class_obj, 'max_bonus', 0) or 0)
+    bonus_per_conv = int(getattr(class_obj, 'bonus_per_conversion', 0) or 0)
+
+    if ppc > 0 and max_bonus > 0 and bonus_per_conv > 0:
+        avail = behavior_status['available_points']
+        earned = behavior_status['bonus_earned']
+        if avail >= ppc and earned < max_bonus:
+            can_gain = min(bonus_per_conv, max_bonus - earned)
+            opportunities.append({
+                'type': 'convert_bonus',
+                'label': 'Ready to convert',
+                'detail': f'{avail} points available ({ppc} → +{can_gain} bonus)',
+            })
+
+    # Severity
+    attention_count = len(alerts)
+    if attention_count >= 2:
+        severity = 'critical'
+    elif attention_count == 1:
+        severity = 'warning'
+    elif len(opportunities) > 0:
+        severity = 'opportunity'
+    else:
+        severity = 'none'
+
+    return {
+        'has_alerts': (attention_count > 0) or (len(opportunities) > 0),
+        'severity': severity,
+        'attention_count': attention_count,
+        'alerts': alerts,
+        'opportunities': opportunities,
+    }

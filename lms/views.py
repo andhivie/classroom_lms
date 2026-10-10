@@ -30,7 +30,7 @@ from lms.constants import STANDARD_ASSESSMENT_TYPES, DAILY_TEST_TYPE
 from .models import (
     Class, UserProfile, Enrollment, Student, AttendanceSession, AttendanceRecord,
     BehaviorEntry, BehaviorCategory, AssessmentType, Assessment, Score,
-    StudentFeedback, Semester, ActivityLog
+    StudentFeedback, Semester, ActivityLog, FocusStudent
 )
 
 # ---------- Helper Functions ----------
@@ -87,6 +87,13 @@ def dashboard(request):
             class_data.append({'class': cls, 'students': []})
             continue
 
+        # Focus students for this class
+        focus_ids = set(
+            FocusStudent.objects.filter(
+                class_obj=cls, teacher=request.user
+            ).values_list('student_id', flat=True)
+        )
+
         # Attendance summary (still uses legacy helper — behavior is now via service)
         attendance_dict = get_attendance_summary(student_ids, cls)
 
@@ -98,9 +105,13 @@ def dashboard(request):
                 continue
 
             sid = student.id
-
+            
             behavior_status = calculate_behavior_status(student, cls)
             score_data = calculate_final_score(student, cls)
+
+            # Smart alerts
+            from lms.services.behavior_service import calculate_student_alerts
+            alerts_data = calculate_student_alerts(student, cls, behavior_status=behavior_status)
 
             att_data = attendance_dict.get(
                 sid,
@@ -126,6 +137,11 @@ def dashboard(request):
             students_data.append({
                 'student': student,
                 'has_private_note': has_private_note,
+                'is_focused': sid in focus_ids,
+                'alerts': alerts_data['alerts'],
+                'alert_severity': alerts_data['severity'],
+                'opportunities': alerts_data['opportunities'],
+                'attention_count': alerts_data['attention_count'],
                 'attendance_summary': attendance_summary,
                 'attendance_percentage': round(attendance_percentage, 1),
                 
@@ -2006,6 +2022,282 @@ def student_note(request, student_id):
 
     return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
 
+@login_required
+def student_snapshot(request, student_id):
+    """
+    JSON endpoint: returns full snapshot data for one student.
+    Scope optional via ?class_id=XXXX (defaults to most recent enrollment).
+    """
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_final_score,
+    )
+    from lms.models import StudentPrivateNote
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    # Access control
+    enrollments = Enrollment.objects.filter(
+        student=student, class_obj__teacher=request.user
+    ).select_related('class_obj', 'class_obj__semester').order_by(
+        '-class_obj__semester__start_date', 'class_obj__name'
+    )
+
+    if not enrollments.exists():
+        return JsonResponse({'status': 'error', 'message': 'Not allowed.'}, status=403)
+
+    # Optional class scope
+    class_id = request.GET.get('class_id')
+    target_class = None
+    if class_id:
+        try:
+            target_class = Class.objects.get(id=class_id, teacher=request.user)
+            if not enrollments.filter(class_obj=target_class).exists():
+                target_class = None
+        except Class.DoesNotExist:
+            target_class = None
+
+    if not target_class:
+        target_class = enrollments.first().class_obj
+
+    # Behavior
+    behavior = calculate_behavior_status(student, target_class)
+
+    # Final score
+    score_data = calculate_final_score(student, target_class)
+
+    # Attendance
+    att_records = AttendanceRecord.objects.filter(
+        student=student, session__class_obj=target_class
+    )
+    total_sessions = att_records.count()
+    present_count = att_records.filter(
+        status__in=['present', 'late', 'excused', 'sick']
+    ).count()
+    attendance_summary = f"{present_count}/{total_sessions}" if total_sessions > 0 else "0/0"
+    attendance_pct = round((present_count / total_sessions) * 100, 1) if total_sessions > 0 else 0
+
+    # Recent behavior (last 5)
+    recent_behavior = []
+    for entry in BehaviorEntry.objects.filter(
+        student=student, semester=target_class.semester
+    ).order_by('-timestamp')[:5]:
+        recent_behavior.append({
+            'points': entry.points,
+            'note': entry.note or '',
+            'time': timezone.localtime(entry.timestamp).strftime('%d %b, %H:%M'),
+        })
+
+    # Recent assessments (last 3)
+    all_assessments = Assessment.objects.filter(class_obj=target_class).order_by('-date')[:3]
+    recent_assessments = []
+    for ass in all_assessments:
+        score_obj = Score.objects.filter(student=student, assessment=ass).first()
+        if score_obj:
+            pct = round((score_obj.points_earned / ass.max_points) * 100, 1) if ass.max_points else 0
+            recent_assessments.append({
+                'name': ass.name,
+                'type': ass.assessment_type.name if ass.assessment_type else '—',
+                'score': score_obj.points_earned,
+                'max': ass.max_points,
+                'percentage': pct,
+                'date': ass.date.strftime('%d %b, %Y'),
+                'graded': True,
+            })
+        else:
+            recent_assessments.append({
+                'name': ass.name,
+                'type': ass.assessment_type.name if ass.assessment_type else '—',
+                'score': None,
+                'max': ass.max_points,
+                'percentage': None,
+                'date': ass.date.strftime('%d %b, %Y'),
+                'graded': False,
+            })
+
+    # Private note preview
+    private_note_preview = ''
+    private_note_obj = StudentPrivateNote.objects.filter(
+        student=student, teacher=request.user
+    ).first()
+    if private_note_obj and private_note_obj.note.strip():
+        private_note_preview = private_note_obj.note.strip()
+        if len(private_note_preview) > 200:
+            private_note_preview = private_note_preview[:200] + '...'
+
+    # Check feedback exists
+    has_feedback = StudentFeedback.objects.filter(
+        student=student, class_obj=target_class
+    ).exclude(feedback_text='').exists()
+
+    # Avatar initial
+    name_parts = student.name.strip().split()
+    if len(name_parts) >= 2:
+        initials = (name_parts[0][0] + name_parts[-1][0]).upper()
+    elif len(name_parts) == 1 and name_parts[0]:
+        initials = name_parts[0][0].upper()
+    else:
+        initials = '?'
+
+    # Avatar initial
+    name_parts = student.name.strip().split()
+    if len(name_parts) >= 2:
+        initials = (name_parts[0][0] + name_parts[-1][0]).upper()
+    elif len(name_parts) == 1 and name_parts[0]:
+        initials = name_parts[0][0].upper()
+    else:
+        initials = '?'
+
+    # Focus flag
+    from lms.models import FocusStudent
+    focus_obj = FocusStudent.objects.filter(
+        student=student, class_obj=target_class, teacher=request.user
+    ).first()
+    is_focused = bool(focus_obj)
+    focus_reason = focus_obj.reason if focus_obj else ''
+
+    return JsonResponse({
+        'status': 'ok',
+        'student': {
+            'id': student.id,
+            'name': student.name,
+            'email': student.email or '',
+            'is_active': student.is_active,
+            'initials': initials,
+        },
+        'class': {
+            'id': target_class.id,
+            'name': target_class.name,
+            'semester': target_class.semester.name,
+            'is_archived': target_class.is_archived,
+        },
+        'stats': {
+            'total_positive': behavior['total_positive'],
+            'total_negative': behavior['total_negative'],
+            'available_points': behavior['available_points'],
+            'bonus_earned': behavior['bonus_earned'],
+            'final_score': score_data['final_score'] if score_data['has_assessments'] else None,
+            'academic_avg': score_data['academic_average'],
+            'attendance_summary': attendance_summary,
+            'attendance_pct': attendance_pct,
+            'daily_test_status': behavior['daily_test_status'],
+            'points_needed_for_test': behavior['points_needed_for_test'],
+        },
+        'recent_behavior': recent_behavior,
+        'recent_assessments': recent_assessments,
+        'private_note': private_note_preview,
+        'has_private_note': bool(private_note_preview),
+        'has_feedback': has_feedback,
+        'other_enrollments_count': max(enrollments.count() - 1, 0),
+        'focus': {
+            'is_focused': is_focused,
+            'reason': focus_reason,
+        },
+    })
+
+@login_required
+def toggle_focus_student(request, student_id, class_id):
+    """
+    Toggle focus flag for a student in a class.
+    POST with optional 'reason' parameter.
+    Returns current focus state.
+    """
+    from lms.models import FocusStudent
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        class_obj = Class.objects.get(id=class_id, teacher=request.user)
+        student = Student.objects.get(id=student_id)
+    except (Class.DoesNotExist, Student.DoesNotExist):
+        return JsonResponse({'status': 'error', 'message': 'Student or class not found.'}, status=404)
+
+    # Access control
+    if not Enrollment.objects.filter(student=student, class_obj=class_obj).exists():
+        return JsonResponse({'status': 'error', 'message': 'Not allowed.'}, status=403)
+
+    reason = request.POST.get('reason', '').strip()[:200]
+
+    existing = FocusStudent.objects.filter(
+        student=student, class_obj=class_obj, teacher=request.user
+    ).first()
+
+    if existing:
+        existing.delete()
+        return JsonResponse({
+            'status': 'ok',
+            'action': 'removed',
+            'is_focused': False,
+            'message': f"Removed {student.name} from Focus list.",
+        })
+    else:
+        FocusStudent.objects.create(
+            student=student,
+            class_obj=class_obj,
+            teacher=request.user,
+            reason=reason,
+        )
+        return JsonResponse({
+            'status': 'ok',
+            'action': 'added',
+            'is_focused': True,
+            'message': f"Added {student.name} to Focus list.",
+        })
+
+
+@login_required
+def update_focus_reason(request, student_id, class_id):
+    """
+    Update the reason for an existing focus flag.
+    """
+    from lms.models import FocusStudent
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid method.'}, status=405)
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Profile missing.'}, status=403)
+    if profile.role != 'teacher':
+        return JsonResponse({'status': 'error', 'message': 'Access restricted.'}, status=403)
+
+    try:
+        focus_obj = FocusStudent.objects.get(
+            student_id=student_id,
+            class_obj_id=class_id,
+            teacher=request.user,
+        )
+    except FocusStudent.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Focus flag not found.'}, status=404)
+
+    reason = request.POST.get('reason', '').strip()[:200]
+    focus_obj.reason = reason
+    focus_obj.save(update_fields=['reason'])
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Focus reason updated.',
+    })
+
 # ---------- Charts ----------
 @login_required
 def charts(request):
@@ -3739,8 +4031,63 @@ def sidebar_info(request):
         for log in recent_logs
     ]
 
+    # Focus students (active classes only)
+    focus_qs = (
+        FocusStudent.objects
+        .filter(teacher=request.user, class_obj__is_archived=False)
+        .select_related('student', 'class_obj')
+        .order_by('-created_at')[:20]
+    )
+
+    # Needs attention (from dashboard data)
+    from lms.services.behavior_service import (
+        calculate_behavior_status,
+        calculate_student_alerts,
+    )
+    needs_attention = []
+
+    active_classes_qs = Class.objects.filter(
+        teacher=request.user, is_archived=False
+    )
+    for cls in active_classes_qs:
+        enrollments = Enrollment.objects.filter(
+            class_obj=cls, is_active=True
+        ).select_related('student')
+        for enr in enrollments:
+            student = enr.student
+            behavior = calculate_behavior_status(student, cls)
+            alerts_data = calculate_student_alerts(student, cls, behavior_status=behavior)
+            if alerts_data['attention_count'] > 0:
+                needs_attention.append({
+                    'id': student.id,
+                    'name': student.name,
+                    'class_id': cls.id,
+                    'class_name': cls.name,
+                    'severity': alerts_data['severity'],
+                    'count': alerts_data['attention_count'],
+                    'top_alert': alerts_data['alerts'][0]['label'] if alerts_data['alerts'] else '',
+                    'details': [a['detail'] for a in alerts_data['alerts'][:3]],
+                })
+
+    # Sort: critical first, then warning, then by name
+    severity_order = {'critical': 0, 'warning': 1}
+    needs_attention.sort(key=lambda x: (severity_order.get(x['severity'], 2), x['name']))
+
+    focus_students = [
+        {
+            'id': f.student.id,
+            'name': f.student.name,
+            'class_id': f.class_obj.id,
+            'class_name': f.class_obj.name,
+            'reason': f.reason or '',
+        }
+        for f in focus_qs
+    ]
+
     return JsonResponse({
         'class_count': class_count,
+        'focus_students': focus_students,
+        'needs_attention': needs_attention,
         'title': title,
         'last_backup': last_backup,
         'backup_health': backup_status['health'],

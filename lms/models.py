@@ -257,6 +257,40 @@ class StudentPrivateNote(models.Model):
     def __str__(self):
         return f"Note by {self.teacher.username} on {self.student.name}"
 
+class FocusStudent(models.Model):
+    """
+    Teacher flag: student needs extra attention in a specific class.
+    Unlimited count per class. Can have an optional reason.
+    """
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='focus_flags'
+    )
+    class_obj = models.ForeignKey(
+        Class,
+        on_delete=models.CASCADE,
+        related_name='focus_students'
+    )
+    teacher = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='focus_flags'
+    )
+    reason = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Optional short reason (e.g., 'Frequent absences', 'Needs motivation')"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('student', 'class_obj', 'teacher')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.student.name} (focus in {self.class_obj.name})"
+
 class BehaviorConversion(models.Model):
     """
     Log of behavior point conversions into academic bonus.
